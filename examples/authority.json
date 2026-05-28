@@ -1,0 +1,34 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:opena2a:authority:opena2a.org",
+  "verificationMethod": [
+    {
+      "id": "did:opena2a:authority:opena2a.org#registry-key",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:opena2a:registry:opena2a.org",
+      "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
+    }
+  ],
+  "service": [
+    {
+      "id": "did:opena2a:authority:opena2a.org#trust-lookup",
+      "type": "TrustLookup",
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/trust/query?name=opena2a.org&type=authority"
+    },
+    {
+      "id": "did:opena2a:authority:opena2a.org#trust-proof",
+      "type": "TrustProof",
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/trust/proof?did=did%3Aopena2a%3Aauthority%3Aopena2a.org"
+    },
+    {
+      "id": "did:opena2a:authority:opena2a.org#badge",
+      "type": "TrustBadge",
+      "serviceEndpoint": "https://api.oa2a.org/badge/authority/opena2a.org"
+    }
+  ],
+  "created": "2026-02-15T00:00:00Z",
+  "updated": "2026-05-28T00:00:00Z"
+}
