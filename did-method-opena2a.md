@@ -273,6 +273,14 @@ Because the reference Registry is a single Azure Container Apps deployment, a su
 
 This specification does not claim that `did:opena2a` is a fully decentralized DID method.
 
+### 6.7 Trust-model axis
+
+`did:opena2a` is a *registry-mediated* DID method. The broader design axis along which a DID method anchors trust includes at least three points: self-certifying methods (the identifier is the key), ledger-anchored methods (the identifier is bound to a write on a public ledger or append-only log), and registry-mediated methods (the identifier is bound to a record in an operator-run registry that is consulted at resolution time).
+
+Each anchor offers a different operational guarantee. Self-certifying methods minimize the resolution surface (there is nothing to resolve) and place all trust in the key holder. Ledger-anchored methods externalize trust in any one operator at the cost of depending on ledger consensus and any verifier-side log auditor. Registry-mediated methods return a richer resolution payload (trust score, signed proofs, scan history, badge endpoints) at the cost of trusting a specific Registry deployment.
+
+Implementations comparing DID methods for agent-identity use cases SHOULD pick the anchor that matches the operational guarantee they need, not the anchor that scores highest on any single axis (decentralization, resolution latency, payload richness, operator independence). A side-by-side comparison of these axes is maintained in this method's [README](https://github.com/opena2a-standards/did-method-opena2a#trust-model). Centralization risk specifically for this method is covered in §6.6.
+
 ## 7. Privacy Considerations
 
 ### 7.1 Resolution traffic
