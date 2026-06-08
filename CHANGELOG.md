@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- README: new "Trust model" section comparing self-certifying, ledger-anchored, and registry-mediated DID methods so implementers can choose deliberately.
+- Spec §6.7 Trust-model axis: short cross-reference to the README comparison; classifies `did:opena2a` as registry-mediated alongside §6.6 centralization risk.
+
 ## [0.1.0] — 2026-05-28
 
 ### Added
