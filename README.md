@@ -1,3 +1,5 @@
+> **OpenA2A specs** · **did:opena2a** · [AIP](https://specs.opena2a.org/specs/aip) · [ATX](https://specs.opena2a.org/specs/atx) · [ATP](https://specs.opena2a.org/specs/atp) · [AAP](https://specs.opena2a.org/specs/aap) · [AIM](https://specs.opena2a.org/specs/aim) · [all specs ↗](https://specs.opena2a.org)
+
 # did-method-opena2a
 
 The `did:opena2a` Decentralized Identifier method specification.
