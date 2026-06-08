@@ -1,4 +1,4 @@
-> **OpenA2A specs** · **did:opena2a** · [AIP](https://specs.opena2a.org/specs/aip) · [ATX](https://specs.opena2a.org/specs/atx) · [ATP](https://specs.opena2a.org/specs/atp) · [AAP](https://specs.opena2a.org/specs/aap) · [AIM](https://specs.opena2a.org/specs/aim) · [all specs ↗](https://specs.opena2a.org)
+> **OpenA2A specs** · **did:opena2a** · [AIP](https://github.com/opena2a-standards/agent-identity-protocol) · [ATX](https://github.com/opena2a-standards/atx-spec) · [ATP](https://github.com/opena2a-standards/agent-trust-protocol) · [AAP](https://github.com/opena2a-standards/agent-authorization-protocol) · [AIM](https://github.com/opena2a-org/agent-identity-management) · [all specs ↗](https://specs.opena2a.org)
 
 # did-method-opena2a
 
