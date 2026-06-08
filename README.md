@@ -4,6 +4,8 @@
 
 The `did:opena2a` Decentralized Identifier method specification.
 
+**W3C registration:** a provisional entry is filed for review at [w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717).
+
 A `did:opena2a` DID names a resource registered in an [OpenA2A Registry][registry] — an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or the registry itself. Resolution returns a [W3C DID Document][did-core] whose verification key is the Registry's Ed25519 signing key and whose service endpoints expose trust lookup, signed trust proofs, and trust badges.
 
 ```
