@@ -11,6 +11,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - README: new "Trust model" section comparing self-certifying, ledger-anchored, and registry-mediated DID methods so implementers can choose deliberately.
 - Spec §6.7 Trust-model axis: short cross-reference to the README comparison; classifies `did:opena2a` as registry-mediated alongside §6.6 centralization risk.
 
+### Fixed
+
+- README and spec §8.2 overstated the reference-verifier coverage ("Go, Rust, TypeScript, and Python ... byte-identical across all four"). Corrected to the actual set: Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519, ML-DSA-65 delegated to Go), with fixture bytes pinned by each suite's `MANIFEST.sha256` and JCS canonical-bytes agreement pinned across Go/Python/TypeScript in `atx-conformance/jcs-vectors/`.
+- README and spec §8.2 mis-expanded ATX as "Agent Trust Cross-Verification"; the correct expansion is "Agent Trust eXtension".
+
 ## [0.1.0] — 2026-05-28
 
 ### Added

@@ -14,7 +14,7 @@ This specification defines the `did:opena2a` Decentralized Identifier method. A 
 
 The method is implemented in production by the OpenA2A Registry (`opena2a-org/opena2a-registry`) and exercised by three independent conformance suites that publish byte-stable test vectors:
 
-- Agent Trust Cross-Verification (ATX)
+- Agent Trust eXtension (ATX)
 - Agent Trust Protocol (ATP)
 - Agent Identity Protocol (AIP)
 
@@ -311,13 +311,13 @@ The canonical reference implementation of the `did:opena2a` method is the OpenA2
 
 ### 8.2 Conformance suites
 
-Three independent conformance suites exercise `did:opena2a:` identifiers in production with byte-stable fixtures and reference verifiers:
+Three independent conformance suites exercise `did:opena2a:` identifiers with byte-stable fixtures and reference verifiers:
 
-- **Agent Trust Cross-Verification (ATX):** <https://github.com/opena2a-standards/atx-conformance>
+- **Agent Trust eXtension (ATX):** <https://github.com/opena2a-standards/atx-conformance>
 - **Agent Trust Protocol (ATP):** <https://github.com/opena2a-standards/atp-conformance>
 - **Agent Identity Protocol (AIP):** <https://github.com/opena2a-standards/aip-conformance>
 
-Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, etc.) whose DID Documents and signed assertions are byte-identical across reference verifiers written in Go, Rust, TypeScript, and Python.
+Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, etc.) in fixtures whose bytes are pinned by a `MANIFEST.sha256`. Reference verifiers exist in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 verification is delegated to the Go verifier), and both must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers.
 
 ### 8.3 Discovery
 
@@ -336,6 +336,6 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - W3C Patent Policy: <https://www.w3.org/Consortium/Patent-Policy-20040205/>
 - OpenA2A Registry source: <https://github.com/opena2a-org/opena2a-registry>
 - OpenA2A discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
-- Agent Trust Cross-Verification (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
+- Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
 - Agent Trust Protocol (ATP) conformance suite: <https://github.com/opena2a-standards/atp-conformance>
 - Agent Identity Protocol (AIP) conformance suite: <https://github.com/opena2a-standards/aip-conformance>

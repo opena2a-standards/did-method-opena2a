@@ -63,11 +63,11 @@ See [`examples/`](./examples/) for byte-stable DID Documents covering each regis
 
 Three independent conformance suites publish byte-stable test fixtures for `did:opena2a:` identifiers:
 
-- [`atx-conformance`][atx] — Agent Trust Cross-Verification
+- [`atx-conformance`][atx] — Agent Trust eXtension (ATX) credentials
 - [`atp-conformance`][atp] — Agent Trust Protocol
 - [`aip-conformance`][aip] — Agent Identity Protocol
 
-Reference verifiers exist in Go, Rust, TypeScript, and Python; each suite produces byte-identical output across all four.
+Each suite ships reference verifiers in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 signatures are presence-checked, with full verification delegated to the Go verifier). Fixture bytes are pinned by each suite's `MANIFEST.sha256`, and both verifiers must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
 
 ## Contributing
 
