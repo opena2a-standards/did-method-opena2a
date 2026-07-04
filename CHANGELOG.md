@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- §3.2 upgraded from "currently registered resource types" (labelled
+  non-normative) to the **shared resource-type registry** for the OpenA2A
+  spec family: ATX §2/§14, ATP-SPEC §3.1, and AIP examples defer here;
+  additions by PR against this repository, mirrored into consumers. The
+  registration-governs-issuance / resolvers-must-not-reject rule is retained.
+- `a2a_agent` moved from an in-table synonym note to an explicit
+  **Deprecated aliases** rule: resolvers SHOULD treat it as `agent`; issuers
+  MUST NOT mint new identifiers with it. Companion cleanups: atx-spec#7
+  (prefix set in §2/§14, `registry` added there) and agent-trust-protocol#6
+  (example tokens).
+
 ### Added
 
 - README: new "Trust model" section comparing self-certifying, ledger-anchored, and registry-mediated DID methods so implementers can choose deliberately.
