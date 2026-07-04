@@ -90,20 +90,35 @@ A `resource-type` is a non-empty, lowercase ASCII alphabetic prefix that may con
 
 The `resource-type` is intentionally an open ABNF rule. New resource types are expected to be added to the OpenA2A Registry over time without requiring revisions to this specification.
 
-### 3.2 Currently registered resource types
+### 3.2 Resource type registry
 
-The following resource types are recognized by the OpenA2A Registry at the time of this draft. This list is non-normative: implementations MUST NOT reject a DID solely because the `resource-type` slot contains an unrecognized value that otherwise conforms to the ABNF in §3.1. Implementations MAY return a 404 Not Found if the Registry has no record of the named resource.
+This section is the **shared resource-type registry** for the OpenA2A
+specification family: ATX (core.md §2/§14), ATP-SPEC (§3.1), and AIP-SPEC
+example identifiers all defer to this table for the set of registered
+`resource-type` values. Additions are made by pull request against this
+repository (the same change policy the ATX §14 registry table records) and
+are mirrored into the consuming specifications.
+
+Registration governs *issuance*, not *resolution*: implementations MUST NOT
+reject a DID solely because the `resource-type` slot contains an unregistered
+value that otherwise conforms to the ABNF in §3.1. Implementations MAY return
+a 404 Not Found if the Registry has no record of the named resource.
 
 | Resource type    | Description                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------- |
 | `registry`       | An OpenA2A Registry instance itself. There is one canonical registry: `did:opena2a:registry:opena2a.org`. |
 | `authority`      | A naming authority (typically a domain) recognized as a root or delegated trust anchor.       |
 | `publisher`      | A vetted publisher of one or more catalogued resources.                                       |
-| `agent`          | An autonomous agent (A2A or otherwise) registered with the Registry. The alias `a2a_agent` is treated as a synonym in legacy fixtures. |
+| `agent`          | An autonomous agent (A2A or otherwise) registered with the Registry.                          |
 | `mcp_server`     | A Model Context Protocol server.                                                              |
 | `ai_tool`        | A generic AI tool catalogued in the Registry.                                                 |
 | `llm`            | A large language model catalogued in the Registry.                                            |
 | `skill`          | A reusable agent skill.                                                                       |
+
+**Deprecated aliases.** `a2a_agent` is a legacy alias of `agent` that appears
+in older fixtures and examples. It is not a registered type: resolvers SHOULD
+treat it as `agent` when encountered, and issuers MUST NOT mint new
+identifiers with it.
 
 ### 3.3 Identifier normalization
 
