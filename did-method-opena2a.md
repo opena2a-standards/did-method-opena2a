@@ -90,6 +90,12 @@ A `resource-type` is a non-empty, lowercase ASCII alphabetic prefix that may con
 
 The `resource-type` is intentionally an open ABNF rule. New resource types are expected to be added to the OpenA2A Registry over time without requiring revisions to this specification.
 
+### 3.1.1 Relationship to the DID Core `idchar` production
+
+DID Core restricts the generic `method-specific-id` to the `idchar` set `ALPHA / DIGIT / "." / "-" / "_" / pct-encoded`: the forward slash (`/`) and commercial at (`@`) are not permitted unescaped and would ordinarily be percent-encoded as `%2F` and `%40`. The `did:opena2a` `unreserved` rule in §3.1 **intentionally extends** that set to admit `/` and `@` unescaped, so that a DID mirrors the upstream identifier it names — scoped npm package names such as `@modelcontextprotocol/server-filesystem`, and path-style agent and skill ids — without a lossy encoding step. This keeps a `did:opena2a` string human-readable and byte-identical to the identifier a developer already knows.
+
+This is a deliberate, documented deviation from strict DID Core syntax, recorded here rather than left implicit. The percent-encoded serialization `did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem` is the strict-DID-Core-conformant equivalent of the same identifier and denotes the same DID subject; the DID Document `service` endpoint URLs in §5 already carry the percent-encoded form where a URL context requires it. Consumers that require generic-DID-grammar conformance MAY percent-encode the `resource-id` before parsing; consumers operating within the OpenA2A ecosystem SHOULD accept the unescaped form. Note that the `unreserved` rule name in §3.1 is local to this specification and is broader than the identically-named RFC 3986 production, which does not include `/` or `@`.
+
 ### 3.2 Resource type registry
 
 This section is the **shared resource-type registry** for the OpenA2A
@@ -179,7 +185,7 @@ Verifiers MUST consult the `publicKeys` array from `/.well-known/opena2a` (not a
 
 The OpenA2A Registry deactivates a `did:opena2a` DID by transitioning the underlying resource record into a non-active status (`suspended`, `revoked`, or `deprecated`).
 
-After deactivation, resolution of the DID continues to return a DID Document, but the document SHOULD include a `deactivated: true` property at the document root and SHOULD NOT advertise active service endpoints. A separate trust-proof revocation endpoint (`POST /api/v1/trust/revoke`) is used to revoke previously-issued signed trust proofs for the DID; revocations are listed at `GET /api/v1/trust/revocations`.
+After deactivation, resolution of the DID continues to return a DID Document, but the resolution result SHOULD report `deactivated: true` in its DID document metadata (`didDocumentMetadata`), per [DID Core §7.1.2][did-core], and the returned document SHOULD NOT advertise active service endpoints. `deactivated` is a property of the resolution metadata, not of the DID Document itself: a resolver that returns a bare DID Document for active DIDs returns a full DID resolution result (a `didDocument` alongside `didDocumentMetadata`) when it needs to report a deactivation. A separate trust-proof revocation endpoint (`POST /api/v1/trust/revoke`) is used to revoke previously-issued signed trust proofs for the DID; revocations are listed at `GET /api/v1/trust/revocations`.
 
 #### 4.4.1 Deactivation vs. credential revocation
 
@@ -208,6 +214,12 @@ A `did:opena2a` DID Document is a JSON-LD document conforming to [DID Core][did-
       "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
     }
   ],
+  "authentication": [
+    "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#registry-key"
+  ],
+  "assertionMethod": [
+    "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#registry-key"
+  ],
   "service": [
     {
       "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#trust-lookup",
@@ -235,6 +247,12 @@ A `did:opena2a` DID Document is a JSON-LD document conforming to [DID Core][did-
 Every `did:opena2a` DID Document SHALL contain at least one `verificationMethod` entry. The reference implementation uses a single `Ed25519VerificationKey2020` entry whose `controller` is the Registry DID (`did:opena2a:registry:opena2a.org`) and whose `publicKeyMultibase` value is the Registry's current Ed25519 signing key encoded with the multibase `z` prefix.
 
 During a key-rotation overlap period (§4.3), the Registry's `/.well-known/opena2a` discovery document SHALL advertise all currently-valid keys. The DID Document itself currently advertises only the most recently-rotated key. Verifiers handling potentially historical signatures SHOULD consult `/.well-known/opena2a` for the full set of valid keys.
+
+### 5.1.1 Verification relationships
+
+Every `did:opena2a` DID Document SHALL bind its `verificationMethod` to a purpose through the DID Core verification relationships [`authentication`][did-core] and [`assertionMethod`][did-core]. A `verificationMethod` entry alone declares that a key exists; the verification relationships declare what the key is *authorized to do*. Per DID Core, a verifier MUST NOT treat a key as valid for authentication (or for verifying an assertion such as a signed trust proof) unless the DID Document lists it under the corresponding relationship.
+
+The reference implementation expresses each relationship as a single reference — the full id of the document's own `verificationMethod` entry — rather than an embedded key, so the Registry's one signing key is bound once and reused. For a resource DID the reference is `<did>#registry-key`; for the registry self-DID (§5.3) it is `did:opena2a:registry:opena2a.org#signing-key`. Both `authentication` and `assertionMethod` reference the same key: it authenticates the subject and makes assertions (signed trust proofs) on the subject's behalf.
 
 ### 5.2 `service`
 
