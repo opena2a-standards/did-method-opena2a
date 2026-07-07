@@ -1,7 +1,7 @@
 # The `did:opena2a` DID Method Specification
 
 **Version:** 0.1 (draft)
-**Status:** Provisional — pending W3C DID Method Registry review
+**Status:** Registered in the W3C DID Extensions registry (did-extensions #717, merged 2026-07-04)
 **License:** Apache License, Version 2.0
 **Editor:** Abdel Sy Fane (OpenA2A, <abdelsyfane@gmail.com>)
 **Repository:** <https://github.com/opena2a-standards/did-method-opena2a>
@@ -24,7 +24,7 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 ## Status of This Document
 
-This is the initial draft of the `did:opena2a` method specification, prepared to accompany a registration entry in the W3C DID method registry. A provisional registration entry is filed for review at [w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717). The method itself has been in production use since OpenA2A Registry migration 102 (Ed25519 trust proofs) and is currently advertised by the registry's `/.well-known/opena2a` discovery document under `supportedMethods: ["did:opena2a"]`.
+This is the initial draft of the `did:opena2a` method specification, prepared to accompany a registration entry in the W3C DID method registry. The registration entry is published in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04). The method itself has been in production use since OpenA2A Registry migration 102 (Ed25519 trust proofs) and is currently advertised by the registry's `/.well-known/opena2a` discovery document under `supportedMethods: ["did:opena2a"]`.
 
 Substantive changes to this document are tracked in the repository's `CHANGELOG.md`.
 
