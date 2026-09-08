@@ -74,6 +74,10 @@ A DID that uses this method MUST begin with the following literal prefix: `did:o
 
 ### 3.1 Syntax (ABNF)
 
+<!-- opena2a-definition: did-syntax -->
+This section and Section 3.1.1 are the one home of the `did:opena2a` string form for the
+OpenA2A specification family; ATX, ATP and AAP cite them rather than restate the grammar.
+
 ```
 opena2a-did       = "did:opena2a:" resource-type ":" resource-id [ "#" fragment ]
 resource-type     = ALPHA-LOWER *( ALPHA-LOWER / "_" )
@@ -94,6 +98,8 @@ The `resource-type` is intentionally an open ABNF rule. New resource types are e
 
 DID Core restricts the generic `method-specific-id` to the `idchar` set `ALPHA / DIGIT / "." / "-" / "_" / pct-encoded`: the forward slash (`/`) and commercial at (`@`) are not permitted unescaped and would ordinarily be percent-encoded as `%2F` and `%40`. The `did:opena2a` `unreserved` rule in §3.1 **intentionally extends** that set to admit `/` and `@` unescaped, so that a DID mirrors the upstream identifier it names — scoped npm package names such as `@modelcontextprotocol/server-filesystem`, and path-style agent and skill ids — without a lossy encoding step. This keeps a `did:opena2a` string human-readable and byte-identical to the identifier a developer already knows.
 
+Signed artifacts (ATX credentials, ATP trust proofs, AAP tokens) MUST carry exactly one form of a `did:opena2a` identifier: the unescaped form above. Verifiers MUST compare identifiers after the normalization of Section 3.3 and MUST NOT normalize an identifier before verifying a signature over bytes that contain it.
+
 This is a deliberate, documented deviation from strict DID Core syntax, recorded here rather than left implicit. The percent-encoded serialization `did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem` is the strict-DID-Core-conformant equivalent of the same identifier and denotes the same DID subject; the DID Document `service` endpoint URLs in §5 already carry the percent-encoded form where a URL context requires it. Consumers that require generic-DID-grammar conformance MAY percent-encode the `resource-id` before parsing; consumers operating within the OpenA2A ecosystem SHOULD accept the unescaped form. Note that the `unreserved` rule name in §3.1 is local to this specification and is broader than the identically-named RFC 3986 production, which does not include `/` or `@`.
 
 ### 3.2 Resource type registry
@@ -104,12 +110,16 @@ example identifiers all defer to this table for the set of registered
 `resource-type` values. Additions are made by pull request against this
 repository (the same change policy the ATX §14 registry table records) and
 are mirrored into the consuming specifications.
+[`registries/resource-types.json`](./registries/resource-types.json) is generated from this
+table by `scripts/gen_registries.py` and checked in CI, so consumers can pin the registry by
+commit the way the conformance suites pin schemas.
 
 Registration governs *issuance*, not *resolution*: implementations MUST NOT
 reject a DID solely because the `resource-type` slot contains an unregistered
 value that otherwise conforms to the ABNF in §3.1. Implementations MAY return
 a 404 Not Found if the Registry has no record of the named resource.
 
+<!-- opena2a-definition: did-resource-types -->
 | Resource type    | Description                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------- |
 | `registry`       | An OpenA2A Registry instance itself. There is one canonical registry: `did:opena2a:registry:opena2a.org`. |
