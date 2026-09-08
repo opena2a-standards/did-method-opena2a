@@ -9,8 +9,11 @@
       "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#registry-key",
       "type": "Ed25519VerificationKey2020",
       "controller": "did:opena2a:registry:opena2a.org",
-      "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
+      "publicKeyMultibase": "z6Mk<base58btc of 0xed01 || registry Ed25519 public key>"
     }
+  ],
+  "assertionMethod": [
+    "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#registry-key"
   ],
   "service": [
     {
@@ -30,5 +33,5 @@
     }
   ],
   "created": "2026-02-20T00:00:00Z",
-  "updated": "2026-05-21T00:00:00Z"
+  "updated": "2026-09-08T00:00:00Z"
 }
