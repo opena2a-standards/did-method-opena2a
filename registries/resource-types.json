@@ -1,0 +1,46 @@
+{
+  "id": "did-resource-types",
+  "source": {
+    "file": "did-method-opena2a.md",
+    "marker": "<!-- opena2a-definition: did-resource-types -->"
+  },
+  "columns": [
+    "Resource type",
+    "Description"
+  ],
+  "key": "Resource type",
+  "rows": [
+    {
+      "Resource type": "registry",
+      "Description": "An OpenA2A Registry instance itself. There is one canonical registry: `did:opena2a:registry:opena2a.org`."
+    },
+    {
+      "Resource type": "authority",
+      "Description": "A naming authority (typically a domain) recognized as a root or delegated trust anchor."
+    },
+    {
+      "Resource type": "publisher",
+      "Description": "A vetted publisher of one or more catalogued resources."
+    },
+    {
+      "Resource type": "agent",
+      "Description": "An autonomous agent (A2A or otherwise) registered with the Registry."
+    },
+    {
+      "Resource type": "mcp_server",
+      "Description": "A Model Context Protocol server."
+    },
+    {
+      "Resource type": "ai_tool",
+      "Description": "A generic AI tool catalogued in the Registry."
+    },
+    {
+      "Resource type": "llm",
+      "Description": "A large language model catalogued in the Registry."
+    },
+    {
+      "Resource type": "skill",
+      "Description": "A reusable agent skill."
+    }
+  ]
+}
