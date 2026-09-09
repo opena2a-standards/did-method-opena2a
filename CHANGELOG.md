@@ -14,8 +14,8 @@ the AIP method scoping). 0.1.0 was cited by AIP-SPEC 1.0.0-draft and 1.0.1-draft
 and by `draft-fane-opena2a-aip-00` through `-02`.
 
 Change process: this revision changes the DID Document shape, so Section 9
-applies. The 7-day quiet period starts when the pull request for this revision
-opens.
+applies. The 7-day quiet period started on 2026-09-09, the day the pull request
+for this revision opened; the earliest merge date is 2026-09-16.
 
 ### Changed
 
