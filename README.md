@@ -15,7 +15,7 @@ did:opena2a:agent:agent_conformance_test_001
 did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem
 ```
 
-`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers and does not serve `did:opena2a`; see AIP-SPEC 1.0.2-draft Section 3.2.
+`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a`; see AIP-SPEC 1.1.0-draft Section 3.2.
 
 ## Specification
 
@@ -45,7 +45,7 @@ For the security-considerations view of the same axis (availability risk, key ro
 - **Status:** Registered in the W3C DID Extensions registry (did-extensions #717, merged 2026-07-04)
 - **License:** Apache License, Version 2.0 (see [`LICENSE`](./LICENSE))
 
-Revision 0.2 changes the DID Document shape (subject keys under `authentication`, registry key under `assertionMethod`), corrects the `publicKeyMultibase` description to base58btc with the multicodec prefix, adds the issuing-registry rule, and sets the resolution media type to `application/did+json`. The reference resolver still emits the 0.1 shape and `application/did+ld+json`; the spec's implementation status notes and [`CHANGELOG.md`](./CHANGELOG.md) record what is open.
+Revision 0.2 changes the DID Document shape (subject keys under `authentication`, registry key under `assertionMethod`), corrects the `publicKeyMultibase` description to base58btc with the multicodec prefix, adds the issuing-registry rule, and keeps the resolution media type at `application/did+ld+json` (the served document is JSON-LD). The reference resolver still emits the 0.1 document shape; the spec's implementation status notes and [`CHANGELOG.md`](./CHANGELOG.md) record what is open.
 
 ## Resolution
 
@@ -55,7 +55,7 @@ A `did:opena2a` DID is resolved by HTTP `GET` against the registry that issued i
 curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
 
-The registry replies with a DID Document and a 5-minute cache header. The specification's media type is `application/did+json`; the reference deployment replies with `application/did+ld+json` as of 2026-09-08 (spec Section 4.2).
+The registry replies with a DID Document, `Content-Type: application/did+ld+json`, and a 5-minute cache header (spec Section 4.2; the reference deployment replies with that media type as of 2026-09-08).
 
 ## Examples
 

@@ -26,7 +26,7 @@ This is revision 0.2 of the `did:opena2a` method specification. The method is re
 
 Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of the source read for this revision; see the implementation status notes in Sections 4.2 and 5.1.
 
-Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers and does not serve `did:opena2a` (AIP-SPEC 1.0.2-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
+Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
 
 Substantive changes to this document are tracked in the repository's `CHANGELOG.md`.
 
@@ -157,7 +157,7 @@ A `did:opena2a` identifier does not itself name the registry that issued it. Two
 
 The rule in this revision is metadata-based. A resolver MUST report the issuing registry's self-identifier (Section 3.4) in the resolution result's `didDocumentMetadata` under the member `issuingRegistry`, and every `assertionMethod` entry in the returned document MUST have that registry as its `controller`. A verifier MUST resolve against the registry it has pinned (Section 6.1) and MUST reject a document whose `issuingRegistry` differs from the pinned registry's self-identifier.
 
-This revision does not define an authority segment inside the identifier. Such a segment would have to be distinguished from the `/` that scoped package identifiers already carry in the `resource-id` slot (`@modelcontextprotocol/server-filesystem`), and that distinction is not settled here.
+This method does not define an authority segment. The identifier names the resource; the registry that vouches for it is provenance, reported in resolution metadata as above, so provenance can change (federation, a mirror, a migration) without renaming the subject or every signed artifact that carries it. A segment inside the identifier would also have to be distinguished from the `/` that scoped package identifiers already carry in the `resource-id` slot (`@modelcontextprotocol/server-filesystem`).
 
 ## 4. Method operations
 
@@ -180,13 +180,13 @@ A `did:opena2a` DID is resolved by issuing an HTTP `GET` request to the DID reso
 The registry replies with a W3C DID Document (Section 5) and the following headers:
 
 ```
-Content-Type:    application/did+json
+Content-Type:    application/did+ld+json
 Cache-Control:   public, max-age=300
 ```
 
-`application/did+json` is the one media type of this method; ATP-SPEC Section 3.3 states the same value for its DID resolution operation. When the resolver reports resolution metadata (a deactivation, Section 4.4, or the issuing registry, Section 3.5) it returns a full DID resolution result (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`) per DID Core Section 7.1.
+`application/did+ld+json` is the one media type of this method: the served document is JSON-LD (it carries the `@context` member, Section 5), and this is the value the OpenA2A specification family uses for DID resolution. When the resolver reports resolution metadata (a deactivation, Section 4.4, or the issuing registry, Section 3.5) it returns a full DID resolution result (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`) per DID Core Section 7.1.
 
-Implementation status (reference resolver, source read 2026-09-08): the reference deployment replies with `Content-Type: application/did+ld+json`, and its handler test pins that value (`opena2a-registry/internal/interfaces/http/handlers/did_handler_test.go:39-41`). Revision 0.1 of this specification stated `application/did+ld+json`. The media type in this revision follows the family's one value; the resolver change is tracked in the repository's `CHANGELOG.md`.
+Implementation status (reference resolver, source read 2026-09-08): the reference deployment replies with `Content-Type: application/did+ld+json`, and its handler test pins that value (`opena2a-registry/internal/interfaces/http/handlers/did_handler_test.go:39-41`). Revision 0.1 of this specification stated the same value; this revision keeps it.
 
 If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
 
@@ -409,7 +409,7 @@ A registry exposes a discovery document at the well-known path `/.well-known/ope
 
 The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.org`. Its self-identifier is `did:opena2a:registry:opena2a.org`. The concrete surface, as of the source read on 2026-09-08:
 
-- Resolution: `GET https://api.oa2a.org/api/v1/did/<did>`, replying with `Content-Type: application/did+ld+json` (Section 4.2 records the divergence from this revision's media type).
+- Resolution: `GET https://api.oa2a.org/api/v1/did/<did>`, replying with `Content-Type: application/did+ld+json` (Section 4.2).
 - Discovery: `GET https://api.oa2a.org/.well-known/opena2a`.
 - Registry key rotation and revocation: `POST /internal/keys/rotate`, `POST /internal/keys/revoke` (operator-only).
 - Trust-proof revocation: `POST /api/v1/trust/revoke`; revocation list: `GET /api/v1/trust/revocations`.
@@ -437,7 +437,7 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - W3C DID Extensions registry (method entry `opena2a`, w3c/did-extensions#717): <https://github.com/w3c/did-extensions>
 - W3C Patent Policy: <https://www.w3.org/Consortium/Patent-Policy-20040205/>
 - RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA), Section 7.1 test vectors: <https://datatracker.ietf.org/doc/html/rfc8032#section-7.1>
-- OpenA2A Agent Identity Protocol, AIP-SPEC 1.0.2-draft, Section 3.2 (method scoping): <https://github.com/opena2a-standards/agent-identity-protocol>
+- OpenA2A Agent Identity Protocol, AIP-SPEC 1.1.0-draft, Section 3.2 (method scoping): <https://github.com/opena2a-standards/agent-identity-protocol>
 - OpenA2A Registry source: <https://github.com/opena2a-org/opena2a-registry>
 - OpenA2A reference deployment discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
 - Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>

@@ -8,10 +8,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.2.0] - 2026-09-08
 
-Pairing: this revision is the `did:opena2a` method cited by AIP-SPEC 1.0.2-draft
+Pairing: this revision is the `did:opena2a` method cited by AIP-SPEC 1.1.0-draft
 Section 3.2 and by `draft-fane-opena2a-aip-03` (the Internet-Draft that carries
 the AIP method scoping). 0.1.0 was cited by AIP-SPEC 1.0.0-draft and 1.0.1-draft
 and by `draft-fane-opena2a-aip-00` through `-02`.
+
+Change process: this revision changes the DID Document shape, so Section 9
+applies. The 7-day quiet period starts when the pull request for this revision
+opens.
 
 ### Changed
 
@@ -39,15 +43,15 @@ and by `draft-fane-opena2a-aip-00` through `-02`.
   registry's self-identifier in `didDocumentMetadata.issuingRegistry`, every
   `assertionMethod` entry has that registry as controller, and a verifier
   rejects a document whose issuing registry differs from the registry it
-  pinned. An authority segment inside the identifier is not defined in this
-  revision because it would collide with the `/` that scoped package
-  identifiers already carry in `resource-id`.
-- **Media type (Section 4.2).** Resolution replies with one media type,
-  `application/did+json`, the value ATP-SPEC Section 3.3 already states. 0.1
-  stated `application/did+ld+json`, which is what the reference resolver
-  emits and its handler test pins (`did_handler_test.go:39-41`); the
-  divergence is recorded in Sections 4.2 and 8.4 and the resolver change is
-  open.
+  pinned. This method does not define an authority segment: the identifier
+  names the resource and the issuing registry is provenance reported in
+  metadata, so provenance can change without renaming the subject; a segment
+  would also collide with the `/` that scoped package identifiers already
+  carry in `resource-id`.
+- **Media type (Section 4.2).** Unchanged from 0.1: `application/did+ld+json`,
+  the JSON-LD document type, which the reference resolver emits and its
+  handler test pins (`did_handler_test.go:39-41`). Section 4.2 now states why
+  (the served document carries `@context`).
 - **Roles, not brands, in normative text (Sections 3.2, 3.4, 4, 6, 7, 8).**
   "One canonical registry" became "the registry that issued the DID"; a registry
   names itself `did:opena2a:registry:<authority>`; concrete `api.oa2a.org`
@@ -64,8 +68,8 @@ and by `draft-fane-opena2a-aip-00` through `-02`.
 - **Status paragraph** reflects the merged W3C registration and states the
   scope split with the Agent Identity Protocol: `did:opena2a` is the
   ecosystem-scoped method used at the ATP and ATX layer; an AIP identity
-  provider issues and resolves its own provider-scoped identifiers and does
-  not serve `did:opena2a`.
+  provider issues and resolves its own provider-scoped identifiers (a
+  `did:web` profile) and does not serve `did:opena2a`.
 - **Section 8.2** no longer says the conformance suites exercise the
   `examples/` documents: no suite pins a resolved DID Document as a fixture
   (measured across `atx-conformance`, `atp-conformance`, `aip-conformance` on
