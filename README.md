@@ -59,7 +59,7 @@ The registry replies with a DID Document, `Content-Type: application/did+ld+json
 
 ## Examples
 
-See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves plus the registry self-DID. `examples/agent.json` carries a real subject key: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to `did:opena2a:agent:agent_conformance_test_001`. The registry key values are placeholders. The examples are illustrative; no conformance suite pins a resolved DID Document.
+See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves plus the registry self-DID. `examples/agent.json` carries a real subject key: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to `did:opena2a:agent:agent_conformance_test_001`. The registry key values are placeholders. The examples are illustrative; no conformance suite pins a resolved DID Document (as of 2026-09-08).
 
 ## Conformance
 

@@ -35,7 +35,8 @@ opens.
   `0xed01` followed by the raw key, the `z6Mk...` form. 0.1 described it as a
   base64 encoding after `z`; that was a text error, not a resolver defect: the
   reference resolver already encodes as now specified
-  (`did_service.go:56-68`). The Section 5 example carries a real subject key
+  (`did_service.go:56-68`; private source; a live `publicKeyMultibase` begins
+  `z6Mk`). The Section 5 example carries a real subject key
   (RFC 8032 Section 7.1 Test 2, the AIP conformance suite's bound agent key)
   that an independent multiformats implementation decodes to the
   `ed25519-pub` codec and the published key bytes.
@@ -126,7 +127,7 @@ opens.
   form fixture pair are specified (Sections 3.1.1 and 5.1) but no fixture is
   added to a conformance suite by this revision.
 - The representation of a post-quantum subject key component.
-- The resolver changes (0.2 shape, media type) in `opena2a-registry`.
+- The resolver changes (the 0.2 document shape and `issuingRegistry` metadata) in `opena2a-registry`.
 
 ## [0.1.0] - 2026-05-28
 

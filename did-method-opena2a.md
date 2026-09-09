@@ -22,9 +22,9 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 ## Status of this document
 
-This is revision 0.2 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method has been in production use since OpenA2A Registry migration 102 (Ed25519 trust proofs) and is advertised by the reference deployment's discovery document under `supportedMethods: ["did:opena2a"]` (Section 8.4).
+This is revision 0.2 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
 
-Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of the source read for this revision; see the implementation status notes in Sections 4.2 and 5.1.
+Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
 
 Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
 
@@ -159,6 +159,8 @@ The rule in this revision is metadata-based. A resolver MUST report the issuing 
 
 This method does not define an authority segment. The identifier names the resource; the registry that vouches for it is provenance, reported in resolution metadata as above, so provenance can change (federation, a mirror, a migration) without renaming the subject or every signed artifact that carries it. A segment inside the identifier would also have to be distinguished from the `/` that scoped package identifiers already carry in the `resource-id` slot (`@modelcontextprotocol/server-filesystem`).
 
+Implementation status (2026-09-08): the reference deployment returns the bare DID Document with no `didDocumentMetadata`; `issuingRegistry` is not emitted.
+
 ## 4. Method operations
 
 A registry exposes all four DID method operations (Create, Read, Update, Deactivate) through its HTTP API. This section describes each operation by role; the concrete paths served by the reference deployment are listed in Section 8.4 and may differ for another registry deployment.
@@ -184,9 +186,9 @@ Content-Type:    application/did+ld+json
 Cache-Control:   public, max-age=300
 ```
 
-`application/did+ld+json` is the one media type of this method: the served document is JSON-LD (it carries the `@context` member, Section 5), and this is the value the OpenA2A specification family uses for DID resolution. When the resolver reports resolution metadata (a deactivation, Section 4.4, or the issuing registry, Section 3.5) it returns a full DID resolution result (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`) per DID Core Section 7.1.
+`application/did+ld+json` is the one media type of this method: the served document is JSON-LD (it carries the `@context` member, Section 5). When the resolver reports resolution metadata (a deactivation, Section 4.4, or the issuing registry, Section 3.5) it returns a full DID resolution result (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`) per DID Core Section 7.1.
 
-Implementation status (reference resolver, source read 2026-09-08): the reference deployment replies with `Content-Type: application/did+ld+json`, and its handler test pins that value (`opena2a-registry/internal/interfaces/http/handlers/did_handler_test.go:39-41`). Revision 0.1 of this specification stated the same value; this revision keeps it.
+Implementation status (2026-09-08): the reference deployment replies `Content-Type: application/did+ld+json` (`curl -sI https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org`); its handler test pins the value in the registry source, which is private. Revision 0.1 stated the same value; this revision keeps it.
 
 If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
 
@@ -286,11 +288,11 @@ Every `did:opena2a` DID Document SHALL contain at least one `verificationMethod`
 - **Subject keys.** One or more entries whose `controller` is the subject DID itself. Their ids use the fragment `#key-N`. A subject key is an Ed25519 key published by the subject at registration or rotation (Sections 4.1 and 4.3). The representation of a post-quantum key component is not defined in this revision.
 - **Registry key.** Exactly one entry whose `controller` is the issuing registry's self-identifier (Section 3.4). Its id uses the fragment `#registry-key`. Its value is the registry's current Ed25519 signing key.
 
-For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 of this document described the value as a base64 encoding after `z`; that description was wrong. The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
+For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; this revision corrects the description (`CHANGELOG.md`, 0.2.0). The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
 
 During a registry key rotation overlap period (Section 4.3), the registry's discovery document SHALL advertise all currently valid registry keys. The DID Document itself advertises only the most recently rotated registry key. Verifiers handling potentially historical assertions SHOULD consult the discovery document for the full set of valid keys.
 
-Implementation status (reference resolver, source read 2026-09-08): the reference resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not yet published by the reference resolver; the 0.2 shape is the target it is measured against.
+Implementation status (reference resolver, source read 2026-09-08): the reference resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not published by the reference resolver as of 2026-09-08 (resolve `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`: one `#registry-key` entry, controller the registry DID, under both relationships); the 0.2 shape is the target it is measured against.
 
 ### 5.1.1 Verification relationships
 
@@ -399,7 +401,7 @@ Three conformance suites carry `did:opena2a:` identifiers in byte-stable fixture
 - **Agent Trust Protocol (ATP):** <https://github.com/opena2a-standards/atp-conformance>
 - **Agent Identity Protocol (AIP):** <https://github.com/opena2a-standards/aip-conformance>
 
-Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, and others) in fixtures whose bytes are pinned by a `MANIFEST.sha256`. Reference verifiers exist in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 verification is delegated to the Go verifier), and both must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of this revision, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned.
+Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, and others) in fixtures whose bytes are pinned by a `MANIFEST.sha256`. Reference verifiers exist in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 verification is delegated to the Go verifier), and both must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of 2026-09-08, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned.
 
 ### 8.3 Discovery
 
