@@ -6,11 +6,23 @@
   "id": "did:opena2a:agent:agent_conformance_test_001",
   "verificationMethod": [
     {
+      "id": "did:opena2a:agent:agent_conformance_test_001#key-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:opena2a:agent:agent_conformance_test_001",
+      "publicKeyMultibase": "z6MkiaMbhXHNA4eJVCCj8dbzKzTgYDKf6crKgHVHid1F1WCT"
+    },
+    {
       "id": "did:opena2a:agent:agent_conformance_test_001#registry-key",
       "type": "Ed25519VerificationKey2020",
       "controller": "did:opena2a:registry:opena2a.org",
-      "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
+      "publicKeyMultibase": "z6Mk<base58btc of 0xed01 || registry Ed25519 public key>"
     }
+  ],
+  "authentication": [
+    "did:opena2a:agent:agent_conformance_test_001#key-1"
+  ],
+  "assertionMethod": [
+    "did:opena2a:agent:agent_conformance_test_001#registry-key"
   ],
   "service": [
     {
@@ -30,5 +42,5 @@
     }
   ],
   "created": "2026-04-12T00:00:00Z",
-  "updated": "2026-05-14T00:00:00Z"
+  "updated": "2026-09-08T00:00:00Z"
 }

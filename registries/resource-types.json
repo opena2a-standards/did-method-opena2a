@@ -12,7 +12,7 @@
   "rows": [
     {
       "Resource type": "registry",
-      "Description": "An OpenA2A Registry instance itself. There is one canonical registry: `did:opena2a:registry:opena2a.org`."
+      "Description": "An OpenA2A Registry deployment itself. A registry names itself `did:opena2a:registry:<authority>`; the registry that issued a DID is the trust root for that DID (Section 3.5)."
     },
     {
       "Resource type": "authority",
@@ -24,7 +24,7 @@
     },
     {
       "Resource type": "agent",
-      "Description": "An autonomous agent (A2A or otherwise) registered with the Registry."
+      "Description": "An autonomous agent (A2A or otherwise) registered with a registry."
     },
     {
       "Resource type": "mcp_server",
@@ -32,11 +32,11 @@
     },
     {
       "Resource type": "ai_tool",
-      "Description": "A generic AI tool catalogued in the Registry."
+      "Description": "A generic AI tool catalogued in a registry."
     },
     {
       "Resource type": "llm",
-      "Description": "A large language model catalogued in the Registry."
+      "Description": "A large language model catalogued in a registry."
     },
     {
       "Resource type": "skill",

@@ -12,6 +12,12 @@
       "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
     }
   ],
+  "authentication": [
+    "did:opena2a:registry:opena2a.org#signing-key"
+  ],
+  "assertionMethod": [
+    "did:opena2a:registry:opena2a.org#signing-key"
+  ],
   "service": [
     {
       "id": "did:opena2a:registry:opena2a.org#trust-api",
@@ -30,5 +36,5 @@
     }
   ],
   "created": "2026-02-15T00:00:00Z",
-  "updated": "2026-05-28T00:00:00Z"
+  "updated": "2026-09-08T00:00:00Z"
 }
