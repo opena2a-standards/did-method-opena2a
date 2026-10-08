@@ -6,6 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- **Section 4.2 implementation note.** The cited command is now a `GET` that
+  prints only the response headers; the reference resolver answers `HEAD` with
+  `405`, so the previous `curl -sI` command did not show the media type.
+- **Section 5.3 implementation note.** Records how the reference deployment's
+  registry DID Document differs from the section and from
+  `examples/registry.json`: three verification methods (two Ed25519 entries for
+  one key and an ML-DSA-65 `JsonWebKey`), all three under `assertionMethod`, the
+  JWK context, and `created` and `updated` set to the request time.
+- **README.** The closing paragraph of the use cases is headed "What you can
+  check yourself" and counts only the AIP fixtures that carry a `did:opena2a`
+  identifier (4 of 7).
+
 ## [0.2.0] - 2026-09-08
 
 Pairing: this revision is the `did:opena2a` method cited by AIP-SPEC 1.1.0-draft

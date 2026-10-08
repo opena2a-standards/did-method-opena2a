@@ -188,7 +188,7 @@ Cache-Control:   public, max-age=300
 
 `application/did+ld+json` is the one media type of this method: the served document is JSON-LD (it carries the `@context` member, Section 5). When the resolver reports resolution metadata (a deactivation, Section 4.4, or the issuing registry, Section 3.5) it returns a full DID resolution result (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`) per DID Core Section 7.1.
 
-Implementation status (2026-09-08): the reference deployment replies `Content-Type: application/did+ld+json` (`curl -sI https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org`); its handler test pins the value in the registry source, which is private. Revision 0.1 stated the same value; this revision keeps it.
+Implementation status (2026-09-08, request re-measured 2026-10-08): the reference deployment replies `Content-Type: application/did+ld+json` to a `GET` (`curl -sS -o /dev/null -D - https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org`). It answers `HEAD` with `405 Method Not Allowed`, so a header-only request such as `curl -sI` does not show the media type. Its handler test pins the value in the registry source, which is private. Revision 0.1 stated the same value; this revision keeps it.
 
 If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
 
@@ -316,6 +316,8 @@ Service endpoint URLs are relative to the issuing registry's base URL and theref
 ### 5.3 The registry DID
 
 The DID Document for a registry's self-identifier (Section 3.4) is a special case. Its `service` array advertises the registry's top-level endpoints (`TrustAPI`, `DIDResolver`, `Federation`) rather than per-resource lookups, and its single `verificationMethod` is the registry's signing key under the fragment `#signing-key`, with the registry itself as controller and listed under both `authentication` and `assertionMethod`. This DID is the trust root for every other `did:opena2a` identifier the same registry issues.
+
+Implementation status (measured 2026-10-08, `curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org`): the reference deployment's registry DID Document differs from this section and from [`examples/registry.json`](./examples/registry.json). It carries three `verificationMethod` entries: `#signing-key` and `#key-v1`, both `Ed25519VerificationKey2020` with the same key material, and `#pqc-v1`, a `JsonWebKey` with `kty` `AKP` and `alg` `ML-DSA-65`, for which it adds the `https://w3id.org/security/jwk/v1` context. `authentication` lists `#signing-key` only; `assertionMethod` lists all three. Its `created` and `updated` values equal the time of the request, not the time the registry DID was created or last updated (Section 4.3, item 1). The single-key shape in this section is the one the deployment is measured against.
 
 ## 6. Security considerations
 
