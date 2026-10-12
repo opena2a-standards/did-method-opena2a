@@ -41,6 +41,18 @@ the day the pull request for this revision opens; the earliest merge date is
 - **README.** The closing paragraph of the use cases is headed "What you can
   check yourself" and counts only the AIP fixtures that carry a `did:opena2a`
   identifier (4 of 7).
+- **Examples match the reference deployment.** `examples/` holds one DID
+  Document per resource type the deployment serves (`agent`, `mcp_server`,
+  `ai_tool`, `llm`, `skill`) plus the registry self-DID. Each one names a DID
+  that resolves and carries the `service` endpoints the deployment returns.
+  `ai_tool.json`, `llm.json` and `skill.json` are new. `agent.json` now names
+  a catalogued agent. The `mcp_server.json` badge path leaves `@` unescaped,
+  as the live document does. `registry.json` uses the `z6Mk...` placeholder in
+  place of the 0.1 base64 placeholder. The AIP conformance agent, with its
+  subject key, and `authority:opena2a.org` both answer `404` at the
+  deployment, so they moved to `examples/conformance/`. The new
+  `scripts/check_examples.py` checks the file set, the 0.2 shape and the URL
+  encoding, and `--live` resolves each DID.
 
 ## [0.2.0] - 2026-09-08
 

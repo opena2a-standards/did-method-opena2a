@@ -9,7 +9,7 @@
       "id": "did:opena2a:registry:opena2a.org#signing-key",
       "type": "Ed25519VerificationKey2020",
       "controller": "did:opena2a:registry:opena2a.org",
-      "publicKeyMultibase": "z<base64-encoded Ed25519 public key>"
+      "publicKeyMultibase": "z6Mk<base58btc of 0xed01 || registry Ed25519 public key>"
     }
   ],
   "authentication": [

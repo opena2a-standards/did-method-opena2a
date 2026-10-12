@@ -93,7 +93,9 @@ The registry replies with a DID Document, `Content-Type: application/did+ld+json
 
 ## Examples
 
-See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves plus the registry self-DID. `examples/agent.json` carries a real subject key: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to `did:opena2a:agent:agent_conformance_test_001`. The registry key values are placeholders. The examples are illustrative; no conformance suite pins a resolved DID Document (as of 2026-09-08).
+See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves (`agent`, `mcp_server`, `ai_tool`, `llm`, `skill`) plus the registry self-DID. Each names a DID that resolves at `api.oa2a.org`, and its `service` endpoints are the ones the deployment returns, byte for byte (measured 2026-10-11). The deployment catalogues agents under the deprecated alias `a2a_agent` (spec Section 3.2), so the agent example's trust-lookup and badge URLs carry that type. A resolved document still differs from its example where 0.2 differs from what the reference resolver emits (it also lists the registry key under `authentication`; spec Section 5.3 records how the registry document differs). The registry key values are placeholders.
+
+[`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry that the deployment does not serve (both answer `404`). `agent.json` is `did:opena2a:agent:agent_conformance_test_001` and carries a real subject key under `authentication`: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to that DID. `authority.json` is `did:opena2a:authority:opena2a.org`. The examples are illustrative; no conformance suite pins a resolved DID Document (as of 2026-09-08). `python3 scripts/check_examples.py` checks the file set, the 0.2 shape and the service URL encoding; with `--live` it also resolves each DID against the reference deployment.
 
 ## Conformance
 

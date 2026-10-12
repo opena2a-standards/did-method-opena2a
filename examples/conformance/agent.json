@@ -1,0 +1,46 @@
+{
+  "@context": [
+    "https://www.w3.org/ns/did/v1",
+    "https://w3id.org/security/suites/ed25519-2020/v1"
+  ],
+  "id": "did:opena2a:agent:agent_conformance_test_001",
+  "verificationMethod": [
+    {
+      "id": "did:opena2a:agent:agent_conformance_test_001#key-1",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:opena2a:agent:agent_conformance_test_001",
+      "publicKeyMultibase": "z6MkiaMbhXHNA4eJVCCj8dbzKzTgYDKf6crKgHVHid1F1WCT"
+    },
+    {
+      "id": "did:opena2a:agent:agent_conformance_test_001#registry-key",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:opena2a:registry:opena2a.org",
+      "publicKeyMultibase": "z6Mk<base58btc of 0xed01 || registry Ed25519 public key>"
+    }
+  ],
+  "authentication": [
+    "did:opena2a:agent:agent_conformance_test_001#key-1"
+  ],
+  "assertionMethod": [
+    "did:opena2a:agent:agent_conformance_test_001#registry-key"
+  ],
+  "service": [
+    {
+      "id": "did:opena2a:agent:agent_conformance_test_001#trust-lookup",
+      "type": "TrustLookup",
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/trust/query?name=agent_conformance_test_001&type=agent"
+    },
+    {
+      "id": "did:opena2a:agent:agent_conformance_test_001#trust-proof",
+      "type": "TrustProof",
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/trust/proof?did=did%3Aopena2a%3Aagent%3Aagent_conformance_test_001"
+    },
+    {
+      "id": "did:opena2a:agent:agent_conformance_test_001#badge",
+      "type": "TrustBadge",
+      "serviceEndpoint": "https://api.oa2a.org/badge/agent/agent_conformance_test_001"
+    }
+  ],
+  "created": "2026-04-12T00:00:00Z",
+  "updated": "2026-09-08T00:00:00Z"
+}

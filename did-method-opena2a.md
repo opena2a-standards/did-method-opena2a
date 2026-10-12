@@ -435,7 +435,7 @@ Example resolution against the reference deployment:
 GET https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
 
-The DID Documents under [`examples/`](./examples/) are shaped for this deployment.
+The DID Documents under [`examples/`](./examples/) are shaped for this deployment, one per resource type it serves plus its self-DID. Those under [`examples/conformance/`](./examples/conformance/) name identifiers that the conformance suites carry and this deployment does not serve.
 
 ## 9. Versioning and change process
 
