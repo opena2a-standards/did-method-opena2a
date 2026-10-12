@@ -57,6 +57,11 @@ the day the pull request for this revision opens; the earliest merge date is
 
 ### Fixed
 
+- **Section 2 (editorial).** The prefix sentence now says the prefix is
+  lowercase and points to Section 3.3, which holds the one rule: the prefix is
+  case-sensitive lowercase. It previously said the prefix "is normalized to
+  lowercase", which contradicted Section 3.3 and the reference resolver, which
+  rejects `did:OPENA2A:...` with `400` rather than lowercasing it.
 - **Section 4.2 implementation note.** The cited command is now a `GET` that
   prints only the response headers; the reference resolver answers `HEAD` with
   `405`, so the previous `curl -sI` command did not show the media type.

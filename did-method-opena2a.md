@@ -77,7 +77,7 @@ did:opena2a:skill:web-research
 
 The method name that shall identify this DID method is: `opena2a`.
 
-A DID that uses this method MUST begin with the following literal prefix: `did:opena2a:`. The prefix is normalized to lowercase. All bytes are US-ASCII.
+A DID that uses this method MUST begin with the following literal prefix: `did:opena2a:`. The prefix is lowercase (Section 3.3). All bytes are US-ASCII.
 
 ## 3. Method-specific identifier
 
