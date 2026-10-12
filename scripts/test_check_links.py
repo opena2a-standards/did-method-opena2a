@@ -92,6 +92,8 @@ class HtmlAttributes(unittest.TestCase):
         # No space after the closing quote, so a bare URL would run into the tag.
         self.assertEqual(targets('<a href = "https://example.org/x">text</a>\n'),
                          ["https://example.org/x"])
+        self.assertEqual(targets('<a href=\t "https://example.org/x">text</a>\n'),
+                         ["https://example.org/x"])
 
     def test_http_url_in_an_attribute(self):
         self.assertEqual(targets('<a href="http://example.org/x">text</a>\n'),
@@ -100,6 +102,17 @@ class HtmlAttributes(unittest.TestCase):
     def test_quoted_url_that_is_not_an_attribute_value_is_a_bare_url(self):
         self.assertEqual(targets('Say "https://example.org/a b" here.\n'),
                          ["https://example.org/a"])
+
+    def test_value_with_no_closing_quote_is_read_as_a_bare_url(self):
+        # The value holds a quote of the other kind and a space.
+        self.assertEqual(targets('<a href="https://example.org/it\'s b\n'),
+                         ["https://example.org/it's"])
+
+    def test_value_of_the_scheme_alone_runs_to_the_closing_quote(self):
+        self.assertEqual(targets('<a href="https://">text</a>\n'), ["https://"])
+
+    def test_value_that_does_not_open_with_http_or_https_and_two_slashes_is_not_a_target(self):
+        self.assertEqual(targets('<a href="https:/example.org/x">text</a>\n'), [])
 
     def test_attribute_on_a_continuation_line_of_its_tag(self):
         self.assertEqual(targets('<a\n  href="https://example.org/x">text</a>\n'),
