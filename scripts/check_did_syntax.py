@@ -22,6 +22,7 @@ requires of the prefix. Exit 1 on any failure. python3 standard library only.
 """
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -284,7 +285,10 @@ def encoded_outside_home(docs: dict, home: range) -> list:
     return out
 
 
-def main() -> int:
+def main(argv: list | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.parse_args(argv)
     spec_text = SPEC.read_text(encoding="utf-8")
     compiler = Compiler(parse_rules(read_grammar(spec_text)))
     did_rx = re.compile(compiler.rule("opena2a-did"))

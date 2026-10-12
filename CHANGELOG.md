@@ -6,6 +6,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- **Resolution vectors (new Section 8.5, informative).** `vectors/` holds two
+  resolution vectors for the resolved-`id` check of Section 6.5: the
+  `did:opena2a:registry:evil.test` substitution measured against the reference
+  deployment, which a verifier rejects, and its positive control.
+  `scripts/check_vectors.py` applies the issuing-registry check of Section 3.5
+  and the Section 6.5 check, comparing the resolved `id` with the canonical
+  form of the requested DID (Section 3.1.2), and fails when a verdict differs
+  from the vector's expected verdict. `scripts/check_did_syntax.py` also reads
+  `vectors/`, so a percent-encoded DID there fails locally as it fails the
+  family spec-drift check `did-example-forms`.
+
 ### Fixed
 
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
@@ -22,12 +35,46 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   exit 1, instead of ending the run with a traceback.
 - **`scripts/check_links.py` checks bare URLs.** A bare `https://` URL in prose,
   which GitHub renders as a link, is now followed like the other link forms.
+- **`scripts/check_links.py` reads a long line in linear time.** A long run of
+  `[`, `[a](`, `](` or `<https://` with no closing bracket made a link pattern
+  retry from every position: a line of 40,000 `[` took 0.52 s and a line of
+  40,000 `[a](` took 49 s, fourfold per doubling. Link text no longer holds a
+  `[`, an autolink no longer holds a `<`, and an inline link target holds
+  parentheses only in balanced pairs, one level deep, as in CommonMark. The
+  targets read from the README and the spec are unchanged.
+- **`scripts/check_links.py` ends a bare URL at whitespace or `<` only**, as
+  GitHub and its docstring do; a `>` no longer ends it.
+- **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
+  answer whose body is not a JSON object, such as an HTML error page, is
+  reported as a problem for that DID, with exit 1, instead of ending the run
+  with a traceback.
+- **`scripts/check_did_syntax.py --help` prints usage.** The script ran the
+  check whatever arguments it was given; `--help` now prints the usage, and an
+  unknown argument exits 2 without running the check.
 - **CHANGELOG 0.3.0.** The percent-encoding and `scripts/check_did_syntax.py`
   entries moved from [Unreleased] to 0.3.0, the revision whose header and
   Section 3.1 carry the ABNF change, and the spec's status section names the
   change. The 0.3.0 change-process paragraph said the quiet period would start
   when the pull request opened; it now records when the revision's pull
   requests opened and merged.
+- **Section 4.4** cites DID Core Section 7.1.3 (DID Document Metadata) for
+  `deactivated`; it cited 7.1.2, which is DID Resolution Metadata.
+- **Section 3.2** no longer says a registry MAY reply `404` for a resource it
+  has no record of; it points to the Section 4.2 rule, under which `404` is the
+  one conforming reply.
+- **Section 8.4** records the not-found body the reference deployment returns
+  for an unregistered `agent` DID,
+  `{"error":"package not found: registry package not found"}` (measured
+  2026-10-12), in place of the `package not found: <type>/<id>` shape it does
+  not emit.
+- **Section 5.1** says revision 0.2 corrected the `publicKeyMultibase`
+  description; "this revision" read as a 0.3 change.
+- **Status paragraph and Section 10** cite AIP-SPEC 1.2.0-draft Section 3.2 and
+  `draft-fane-opena2a-aip-04`; the Section 3.2 text is unchanged from
+  1.1.0-draft. The README cites the same draft.
+- **README.** The "resolve the reference registry's own DID" use case says that
+  every `did:opena2a:registry:<authority>` DID currently resolves to that same
+  document, and that a verifier rejects that answer with the Section 6.5 check.
 
 ## [0.3.0] - 2026-10-11
 

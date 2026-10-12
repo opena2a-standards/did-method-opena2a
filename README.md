@@ -15,7 +15,7 @@ did:opena2a:agent:agent_conformance_test_001
 did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem
 ```
 
-`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a`; see AIP-SPEC 1.1.0-draft Section 3.2.
+`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a`; see AIP-SPEC 1.2.0-draft Section 3.2 (unchanged from 1.1.0-draft).
 
 ## Use cases
 
@@ -31,7 +31,7 @@ What you can do today: resolve the reference registry's own DID.
 curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
 
-Where it stops today: the reference resolver still emits the 0.1 document shape. For a resource DID it publishes the registry's signing key and not the subject's own key, so a verifier cannot yet use the resolved document to check that the caller holds the key behind the name.
+Where it stops today: the reference resolver still emits the 0.1 document shape. For a resource DID it publishes the registry's signing key and not the subject's own key, so a verifier cannot yet use the resolved document to check that the caller holds the key behind the name. It also answers every `did:opena2a:registry:<authority>` DID with this same document: `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:example.com | jq -r .id` prints `did:opena2a:registry:opena2a.org` (measured 2026-10-12). A verifier rejects that answer by checking the resolved `id` against the DID it requested (spec Section 6.5).
 
 ### An agent connects to a tool it did not write
 
@@ -112,6 +112,8 @@ Each suite ships reference verifiers in Go and Python. Fixture bytes are pinned 
 - AIP: both verifiers verify Ed25519 only, and no AIP fixture carries an ML-DSA-65 signature.
 
 The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
+
+This repository carries resolution vectors for the resolved-`id` check of spec Section 6.5 in [`vectors/`](./vectors/), including a negative vector a verifier must reject. Run the reference check over them with `python3 scripts/check_vectors.py`.
 
 ## Contributing
 
