@@ -65,6 +65,12 @@ the day the pull request for this revision opens; the earliest merge date is
   `examples/registry.json`: three verification methods (two Ed25519 entries for
   one key and an ML-DSA-65 `JsonWebKey`), all three under `assertionMethod`, the
   JWK context, and `created` and `updated` set to the request time.
+- **Section 3.2 implementation note.** Records that the reference resolver
+  answers a DID with a well-formed but unregistered `resource-type` (`widget`)
+  with `400` instead of the `404` that Sections 3.2 and 4.2 call for. It also
+  records that `400` is correct for a `resource-type` outside the ABNF
+  (`agent9`, which contains a digit). The resolver change in `opena2a-registry`
+  is open.
 - **README.** The closing paragraph of the use cases is headed "What you can
   check yourself" and counts only the AIP fixtures that carry a `did:opena2a`
   identifier (4 of 7).

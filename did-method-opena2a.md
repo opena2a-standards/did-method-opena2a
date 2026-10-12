@@ -143,6 +143,16 @@ reject a DID solely because the `resource-type` slot contains an unregistered
 value that otherwise conforms to the ABNF in Section 3.1. Implementations MAY return
 a 404 Not Found if the registry has no record of the named resource.
 
+Implementation status (2026-10-11): the reference deployment does not yet follow
+this rule. It rejects a DID whose `resource-type` conforms to the ABNF but is not
+registered with `400 Bad Request`. With `<resource-type>` replaced by `widget`, which
+conforms to the ABNF and is not in the table below,
+`curl -s -w ' %{http_code}\n' https://api.oa2a.org/api/v1/did/did:opena2a:<resource-type>:x`
+prints `{"error":"invalid DID: unknown resource type \"widget\""} 400`, where this
+section and Section 4.2 call for `404 Not Found` because the registry holds no
+record. A `resource-type` outside the ABNF is a syntax error, and `400` is the
+correct reply to it (Section 4.2): `agent9` is one, since the rule admits no digits.
+
 <!-- opena2a-definition: did-resource-types -->
 | Resource type    | Description                                                                                  |
 | ---------------- | -------------------------------------------------------------------------------------------- |
