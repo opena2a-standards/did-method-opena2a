@@ -1,6 +1,6 @@
 # The `did:opena2a` DID method specification
 
-**Version:** 0.2 (draft)
+**Version:** 0.3 (draft)
 **Status:** Registered in the W3C DID Extensions registry (did-extensions #717, merged 2026-07-04)
 **License:** Apache License, Version 2.0
 **Editor:** Abdel Sy Fane (OpenA2A, <abdelsyfane@gmail.com>)
@@ -22,9 +22,11 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 ## Status of this document
 
-This is revision 0.2 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
+This is revision 0.3 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
 
 Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
+
+Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
 
 Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
 
@@ -192,6 +194,10 @@ Implementation status (2026-09-08, request re-measured 2026-10-08): the referenc
 
 If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
 
+The `id` of a returned DID Document MUST equal the requested DID, compared as exact strings (Section 3.3; DID Core Section 7.1 states the same requirement). A registry MUST NOT answer a DID it has not registered with another document, its own registry DID Document (Section 5.3) included. A `did:opena2a:registry:<authority>` DID other than the registry's self-identifier (Section 3.4) is not registered unless the registry holds a record for that registry, and the `404` rule above applies to it.
+
+Implementation status (measured 2026-10-11, `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:evil.test | jq -r .id`): the reference deployment answers every `did:opena2a:registry:<authority>` DID with `200` and its own registry DID Document, whose `id` is `did:opena2a:registry:opena2a.org`. `registry:evil.test`, `registry:example.com` and `registry:api.oa2a.org` were measured. An unregistered `agent` DID returns `404`; its body, `{"error":"package not found: registry package not found"}`, does not identify the missing resource as the rule above requires. The resolver change is open; until it lands, the verifier check in Section 6.5 is what rejects the substituted document.
+
 Resolvers MAY cache successful resolutions in accordance with the `Cache-Control` header. Resolvers SHOULD NOT cache 4xx responses.
 
 #### 4.2.1 Multiple registries
@@ -325,7 +331,7 @@ Implementation status (measured 2026-10-08, `curl https://api.oa2a.org/api/v1/di
 
 Every registry assertion about a `did:opena2a` DID inherits its trust root from the issuing registry's signing key. Compromise of that key lets the attacker forge trust proofs for every DID the registry has issued and, because the registry publishes the subject keys, lets the attacker substitute a subject key in resolved documents. It does not let the attacker produce a proof of possession under a subject's existing key. The mitigations are the key rotation procedure described in Section 4.3, the rotation overlap window that allows verifiers to migrate without dropping in-flight verifications, and verifier-side pinning of subject keys that a verifier has already seen (a changed subject key is a rotation to confirm, not a fact to accept silently).
 
-Verifiers MUST pin the registry they trust, MUST verify the registry's discovery document over HTTPS, and MUST check the issuing registry from resolution metadata (Section 3.5). Verifiers SHOULD NOT accept a `did:opena2a` DID resolved by an arbitrary network resolver.
+Verifiers MUST pin the registry they trust, MUST verify the registry's discovery document over HTTPS, MUST check the issuing registry from resolution metadata (Section 3.5), and MUST check that the resolved document's `id` is the DID they requested (Section 6.5). Verifiers SHOULD NOT accept a `did:opena2a` DID resolved by an arbitrary network resolver.
 
 ### 6.2 Resolver authentication and transport
 
@@ -348,6 +354,8 @@ A subject key revocation is a rotation without a replacement (Section 4.3, item 
 ### 6.5 Forgeability of the DID string itself
 
 A `did:opena2a` string is not, by itself, evidence of anything. Verification requires resolution against a pinned registry and verification of any associated signature against the resolved verification key of the right relationship (Section 5.1.1). Consumers MUST NOT treat a bare DID string in untrusted input as authoritative without performing the full resolve-and-verify procedure.
+
+A verifier MUST check that the `id` of the resolved DID Document equals the DID it requested (Section 4.2), compared as exact strings, and MUST reject the resolution when it does not. Without this check, a resolver that answers an unregistered DID with a different document leads the verifier to accept that document's keys as the requested subject's keys: the keys of `did:opena2a:registry:opena2a.org` would be accepted as the keys of a registry named `evil.test`. The issuing-registry check (Section 3.5) does not catch this substitution, because the substituted document is genuinely issued by the pinned registry.
 
 ### 6.6 Availability and centralization risk
 

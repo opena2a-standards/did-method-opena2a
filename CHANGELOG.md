@@ -6,6 +6,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
+Change process: this revision changes the security model (Sections 4.2, 6.1
+and 6.5), so Section 9 applies. The 7-day quiet period starts on 2026-10-12,
+the day the pull request for this revision opens; the earliest merge date is
+2026-10-19.
+
+### Security
+
+- **Resolved `id` must be the requested DID (Sections 4.2, 6.1, 6.5).** A
+  registry replies with a document whose `id` equals the requested DID, or with
+  `404`; it never answers an unregistered DID with another document, its own
+  registry DID Document included. A verifier rejects a resolution whose `id`
+  differs from the DID it requested; the issuing-registry check does not catch
+  that substitution. Section 9 applies: this entry changes the security model,
+  so the revision that carries it is a version bump with the 7-day quiet period.
+  Implementation status (measured 2026-10-11): the reference deployment answers
+  every `did:opena2a:registry:<authority>` DID, `registry:evil.test` included,
+  with `200` and its own registry DID Document; an unregistered `agent` DID
+  returns `404` with a body that does not identify the missing resource; the
+  resolver change is open.
+
 ### Fixed
 
 - **Section 4.2 implementation note.** The cited command is now a `GET` that
