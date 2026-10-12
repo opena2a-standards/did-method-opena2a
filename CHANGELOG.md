@@ -106,6 +106,11 @@ the day the pull request for this revision opens; the earliest merge date is
   a signature over the whole bundle) and states that a bundle built from
   on-request proofs discloses recent lookups. Section 8.4 records the reference
   deployment's measured bundle and lookup.
+- **Registry generator help.** `scripts/gen_registries.py --help` described the
+  output as `registries/<id>.json`, but the file name comes from the table's
+  entry in the script, not from the marker id. The help now says
+  `registries/<file>.json` and lists each generated file beside its marker id
+  (`registries/resource-types.json` for `did-resource-types`).
 
 ## [0.2.0] - 2026-09-08
 
