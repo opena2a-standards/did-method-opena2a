@@ -28,7 +28,7 @@ Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys 
 
 Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). It also changes the ABNF: the `resource-id` admits percent-encoded triplets, and Section 3.1.2 defines the decoding step that gives such a DID its canonical form. The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
 
-Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
+Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.2.0-draft, Section 3.2, whose text is unchanged from 1.1.0-draft; `draft-fane-opena2a-aip-04`).
 
 Substantive changes to this document are tracked in the repository's `CHANGELOG.md`.
 
@@ -140,8 +140,9 @@ commit the way the conformance suites pin schemas.
 
 Registration governs *issuance*, not *resolution*: implementations MUST NOT
 reject a DID solely because the `resource-type` slot contains an unregistered
-value that otherwise conforms to the ABNF in Section 3.1. Implementations MAY return
-a 404 Not Found if the registry has no record of the named resource.
+value that otherwise conforms to the ABNF in Section 3.1. A DID whose resource the
+registry has no record of is answered `404 Not Found` under Section 4.2, whether or not
+its `resource-type` is registered.
 
 Implementation status (2026-10-11): the reference deployment does not yet follow
 this rule. It rejects a DID whose `resource-type` conforms to the ABNF but is not
@@ -249,7 +250,7 @@ Verifiers MUST consult the `publicKeys` array from the discovery document (not a
 
 A registry deactivates a `did:opena2a` DID by transitioning the underlying resource record into a non-active status (`suspended`, `revoked`, or `deprecated`).
 
-After deactivation, resolution of the DID continues to return a DID Document, but the resolution result SHOULD report `deactivated: true` in its DID document metadata (`didDocumentMetadata`), per [DID Core Section 7.1.2][did-core], and the returned document SHOULD NOT advertise active service endpoints. `deactivated` is a property of the resolution metadata, not of the DID Document itself: a resolver that returns a bare DID Document for active DIDs returns a full DID resolution result when it needs to report a deactivation. A separate trust-proof revocation operation is used to revoke previously issued signed trust proofs for the DID; revocations are listed by the registry's revocation endpoint (Section 8.4 for the reference deployment).
+After deactivation, resolution of the DID continues to return a DID Document, but the resolution result SHOULD report `deactivated: true` in its DID document metadata (`didDocumentMetadata`), per [DID Core Section 7.1.3][did-core], and the returned document SHOULD NOT advertise active service endpoints. `deactivated` is a property of the resolution metadata, not of the DID Document itself: a resolver that returns a bare DID Document for active DIDs returns a full DID resolution result when it needs to report a deactivation. A separate trust-proof revocation operation is used to revoke previously issued signed trust proofs for the DID; revocations are listed by the registry's revocation endpoint (Section 8.4 for the reference deployment).
 
 Implementation status (2026-10-11): the reference deployment does not yet report deactivation. It resolves a `suspended` or `deprecated` resource as it resolves an active one: `200` with the bare DID Document, no `didDocumentMetadata`, and the `TrustLookup`, `TrustProof` and `TrustBadge` services. For the `deprecated` record `a2a-spec`, `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:agent:a2a-spec | jq -c '{service: [.service[].type], didDocumentMetadata}'`
 prints `{"service":["TrustLookup","TrustProof","TrustBadge"],"didDocumentMetadata":null}`, and the trust proof that its `TrustProof` service links to carries the verdict `listed`. The `suspended` record `@prismer/openclaw-channel` resolves the same way. The registry's package listing does report each record's status: `curl -s 'https://api.oa2a.org/api/v1/registry/packages?type=a2a_agent&limit=100' | jq -c '[.packages[].status] | group_by(.) | map({(.[0]): length}) | add'`
@@ -325,7 +326,7 @@ Every `did:opena2a` DID Document SHALL contain at least one `verificationMethod`
 - **Subject keys.** One or more entries whose `controller` is the subject DID itself. Their ids use the fragment `#key-N`. A subject key is an Ed25519 key published by the subject at registration or rotation (Sections 4.1 and 4.3). The representation of a post-quantum key component is not defined in this revision.
 - **Registry key.** Exactly one entry whose `controller` is the issuing registry's self-identifier (Section 3.4). Its id uses the fragment `#registry-key`. Its value is the registry's current Ed25519 signing key.
 
-For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; this revision corrects the description (`CHANGELOG.md`, 0.2.0). The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
+For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; revision 0.2 corrected the description (`CHANGELOG.md`, 0.2.0). The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
 
 During a registry key rotation overlap period (Section 4.3), the registry's discovery document SHALL advertise all currently valid registry keys. The DID Document itself advertises only the most recently rotated registry key. Verifiers handling potentially historical assertions SHOULD consult the discovery document for the full set of valid keys.
 
@@ -451,7 +452,7 @@ Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, 
 - **ATP:** the Go verifier verifies Ed25519 and ML-DSA-65. The Python verifier verifies Ed25519 and records an ML-DSA-65 signature as present without verifying it, so full hybrid verification is the Go verifier's.
 - **AIP:** both verifiers verify Ed25519 only. AIP challenge-response carries no hybrid signature, and no AIP fixture carries an ML-DSA-65 signature.
 
-The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of 2026-09-08, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned.
+The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of 2026-09-08, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned. The resolution vectors of Section 8.5 carry resolved documents for the resolved-`id` check of Section 6.5.
 
 ### 8.3 Discovery
 
@@ -467,7 +468,7 @@ The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.o
 - Trust-proof revocation: `POST /api/v1/trust/revoke`; revocation list: `GET /api/v1/trust/revocations`.
 - Offline bundle: `GET /api/v1/trust/bundle`, refreshed hourly.
 - k-anonymous prefix lookup: `GET /api/v1/trust/private-lookup?prefix=<10+chars>`.
-- Not-found body shape: `{"error": "package not found: <type>/<id>"}`.
+- Not-found body shape: `{"error":"package not found: registry package not found"}` for an unregistered `agent` DID (measured 2026-10-12, `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:agent:agent_conformance_test_001`). The body does not identify the missing resource as Section 4.2 requires; see the implementation status note there.
 
 Implementation status (measured 2026-10-12 UTC, `curl -s https://api.oa2a.org/api/v1/trust/bundle | jq -c '{keys: keys, count}'`): the reference deployment's bundle is a JSON object with the members `count`, `generatedAt`, `issuerDid` and `proofs`, and no signature over the bundle; each proof carries its own `signature` and `signatures`, and `generatedAt` was the time of the request. The bundle carried 5 proofs, issued at different times in the preceding three hours with a 24-hour `expiresAt`, which is consistent with proofs issued on request rather than for the registry's active resources: `did:opena2a:mcp_server:@modelcontextprotocol/server-github` and `did:opena2a:mcp_server:@modelcontextprotocol/server-memory` resolve and are not in it. The prefix lookup answers from the same set: `GET /api/v1/trust/private-lookup?prefix=did:opena2a:mcp_server:@modelcontextprotocol` returned only the `server-filesystem` proof that the bundle carries. On this deployment the offline and privacy properties of Sections 6.6, 7.1 and 7.2 therefore hold only for the DIDs the bundle lists, and the bundle shows every downloader which DIDs were recently requested.
 
@@ -478,6 +479,10 @@ GET https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
 
 The DID Documents under [`examples/`](./examples/) are shaped for this deployment, one per resource type it serves plus its self-DID. Those under [`examples/conformance/`](./examples/conformance/) name identifiers that the conformance suites carry and this deployment does not serve.
+
+### 8.5 Resolution vectors (informative)
+
+The [`vectors/`](./vectors/) directory of this repository holds resolution vectors for the resolved-`id` check of Section 6.5. Each vector is a JSON object with a `requestedDid`, the `resolutionResult` a resolver returned for it (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`), and an `expected` member whose `verdict` is `accept` or `reject`; a rejection also names the failed check as `reason`. Every vector reports the reference deployment's self-identifier as `issuingRegistry`, so the issuing-registry check of Section 3.5 passes and the Section 6.5 check decides the verdict. The negative vector is the substitution measured against the reference deployment (Section 4.2): a request for `did:opena2a:registry:evil.test` answered with the document of `did:opena2a:registry:opena2a.org`, which the issuing-registry check does not catch. Key values in the vectors are placeholders; the checks do not read them. `scripts/check_vectors.py` applies both checks, with `did:opena2a:registry:opena2a.org` as the pinned registry, to every vector and fails when a verdict differs from `expected`, so a verifier implementation can be tested against the same files.
 
 ## 9. Versioning and change process
 
@@ -491,7 +496,7 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - W3C DID Extensions registry (method entry `opena2a`, w3c/did-extensions#717): <https://github.com/w3c/did-extensions>
 - W3C Patent Policy: <https://www.w3.org/Consortium/Patent-Policy-20040205/>
 - RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA), Section 7.1 test vectors: <https://datatracker.ietf.org/doc/html/rfc8032#section-7.1>
-- OpenA2A Agent Identity Protocol, AIP-SPEC 1.1.0-draft, Section 3.2 (method scoping): <https://github.com/opena2a-standards/agent-identity-protocol>
+- OpenA2A Agent Identity Protocol, AIP-SPEC 1.2.0-draft, Section 3.2 (method scoping; the text is unchanged from 1.1.0-draft): <https://github.com/opena2a-standards/agent-identity-protocol>
 - OpenA2A Registry source: `opena2a-org/opena2a-registry`, private (Section 8.1)
 - OpenA2A reference deployment discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
 - Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
