@@ -11,21 +11,24 @@ decodes them: a named one only with its `;`. A bare URL ends at whitespace or
 GitHub. A URL in a quoted HTML attribute value, as in `<a href="...">`, runs
 to the quote that closes the value, whitespace, `<` and line breaks included,
 up to a blank line, and may follow whitespace written as such or as a
-character reference. Its character references are decoded with html.unescape,
-except that a named reference without its `;` is kept as written when `=` or
-an ASCII letter or digit follows it, as a browser keeps `&sect` in
-`&section=2`. Leading and trailing C0 controls and spaces are dropped and tabs
-and newlines are removed, as a browser does. An inline link target may hold
-parentheses in balanced pairs, one level deep. HTML comments are not excluded.
-A relative target must name a file in this repository, and its `#fragment`,
-when present on a Markdown file, must match a heading there. An absolute
-http(s) target is requested anonymously, with each space, control or non-ASCII
-character after the host percent-encoded as a browser does and the rest sent
-as written, and must answer with a success status after redirects: a
-repository that is private answers 404 to an anonymous reader, which is the
-failure this check exists to catch. A target with a host or port that cannot
-be requested, such as a host holding a space, is reported as broken.
-`--offline` skips the network requests. python3 standard library only.
+character reference. A value that runs onto a later line is read as one only
+when its closing quote is followed by whitespace, `/>` or `>`, as in a tag;
+otherwise its URL is read as a bare URL. Its character references are
+decoded with html.unescape, except that a named reference without its `;` is
+kept as written when `=` or an ASCII letter or digit follows it, as a browser
+keeps `&sect` in `&section=2`. Leading and trailing C0 controls and spaces
+are dropped and tabs and newlines are removed, as a browser does. An inline
+link target may hold parentheses in balanced pairs, one level deep. HTML
+comments are not excluded. A relative target must name a file in this
+repository, and its `#fragment`, when present on a Markdown file, must match a
+heading there. An absolute http(s) target is requested anonymously, with each
+space, control or non-ASCII character after the host percent-encoded as a
+browser does and the rest sent as written, and must answer with a success
+status after redirects: a repository that is private answers 404 to an
+anonymous reader, which is the failure this check exists to catch. A target
+with a host or port that cannot be requested, such as a host holding a space,
+is reported as broken. `--offline` skips the network requests. python3
+standard library only.
 """
 from __future__ import annotations
 
@@ -75,11 +78,15 @@ LEADING = (r"(?:[\x00-\x20]|&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
            r"|&#[xX]0*(?:20|1[0-9A-Fa-f]|[1-9A-Fa-f]);?|&(?:Tab|NewLine);)")
 # A URL outside the link forms above. One in a quoted HTML attribute value
 # (href="...", src='...') runs to the quote that closes the value, so the rest
-# of the tag is not read into it; any other is a bare URL. A value stops at the
-# first quote of its own kind, and every value that opens holds a quote of that
-# kind, so only the last value of each kind can fail to close and be read to
-# the end of its block of lines.
-URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?!\1).)*)\1|https?://[^\s<]+""",
+# of the tag is not read into it; any other is a bare URL. A value that runs
+# onto a later line is read only when its closing quote is followed by
+# whitespace, `/>` or `>`, as in a tag, so an unclosed value does not take the
+# opening quote of a quotation in the prose below it as its own. A value is
+# read only to the first quote of its own kind, and the quote that opens the
+# next value of that kind is one, so only the last value of each kind can be
+# read to the end of its block of lines.
+URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?:(?!\1)[^\n])*(?=\1)"""
+                 rf"""|(?:(?!\1).)*(?=\1(?:\s|/?>))))\1|https?://[^\s<]+""",
                  re.DOTALL)
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
