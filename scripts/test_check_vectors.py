@@ -206,8 +206,10 @@ class ScratchVectors(unittest.TestCase):
 
 class CommandLine(unittest.TestCase):
     def run_main(self, argv: list) -> tuple:
+        # Python 3.14 argparse colours its output when FORCE_COLOR is set.
         out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+        with mock.patch.dict(os.environ, {"PYTHON_COLORS": "0"}), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
                 self.assertRaises(SystemExit) as exit_:
             check_vectors.main(argv)
         return exit_.exception.code, out.getvalue(), err.getvalue()

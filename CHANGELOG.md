@@ -52,8 +52,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   read into a URL held in an attribute:
   `<a href="https://example.org/x">text</a>` gave the target
   `https://example.org/x">text`. A URL that opens a quoted attribute value now
-  ends at the quote that closes the value. The README and the spec hold no
-  such tag, so the targets read from them are unchanged.
+  runs to the quote that closes the value, whitespace and `<` included. Its
+  character references are decoded with `html.unescape`, so
+  `<a href="https://example.org/?a=1&amp;b=2">` gives
+  `https://example.org/?a=1&b=2`, except that a named reference without its
+  `;` is kept as written when `=` or an ASCII letter or digit follows it, as a
+  browser keeps it in an attribute value: `?q=x&section=2` stays as written
+  and is not read as `?q=x§ion=2`. Leading and trailing whitespace is dropped
+  and tabs and newlines are removed, as a browser does. A space, control or
+  non-ASCII character after the host is percent-encoded in the request, as a
+  browser does; a control or non-ASCII character in a bare URL ended the run
+  with a traceback before. The README and the spec hold no such tag, so the
+  targets read from them are unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run
