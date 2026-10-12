@@ -90,6 +90,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   browser reads it, which is U+FFFD above U+10FFFF, and the second is reported
   as a broken link. The README and the spec hold no such target, so the
   targets read from them are unchanged.
+- **`scripts/check_links.py` reads a code fence as CommonMark does.** A
+  `` ``` `` or `~~~` line indented by four or more spaces, or by a tab, was
+  read as a code fence, so the lines below it were skipped up to the next such
+  line: a `https://example.org/a` on the line after it, which GitHub renders
+  as a link, was not checked. A fence now holds at most three spaces of
+  indentation, as in CommonMark, so a line indented further neither opens nor
+  closes one, and the headings below it get their anchors. The README and the
+  spec hold no such line, so the targets read from them are unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run

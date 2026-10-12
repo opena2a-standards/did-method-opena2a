@@ -4,7 +4,9 @@
 Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
-and inline code spans. The character references in an inline link or
+and inline code spans. A fence holds at most three spaces of indentation, as
+in CommonMark, so a ``` or ~~~ line indented by four or more spaces or by a
+tab is not a fence. The character references in an inline link or
 reference definition target, such as `&amp;`, are decoded as CommonMark
 decodes them: a named one only with its `;`. A bare URL ends at whitespace or
 `<`, and trailing punctuation and an unbalanced `)` are not part of it, as on
@@ -69,6 +71,10 @@ INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 AUTOLINK = re.compile(r"<(https?://[^<>\s]+)>")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
+# A code fence, as in CommonMark, holds at most three spaces of indentation: a
+# ``` or ~~~ line indented four spaces or a tab is an indented code block,
+# which renders the fence as text, and the lines below it are read as usual.
+FENCE = re.compile(r" {0,3}(?:```|~~~)")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
@@ -235,7 +241,7 @@ def link_targets(text: str) -> list:
     block = []
     in_fence = False
     for n, line in enumerate(text.splitlines(), 1):
-        fence = line.lstrip().startswith(("```", "~~~"))
+        fence = bool(FENCE.match(line))
         if fence or in_fence or not line.strip(" \t"):
             # A fence, a line inside one or a blank line ends a block of prose.
             found += prose_urls(block)
@@ -264,7 +270,7 @@ def heading_anchors(text: str) -> set:
     seen = {}
     in_fence = False
     for line in text.splitlines():
-        if line.lstrip().startswith(("```", "~~~")):
+        if FENCE.match(line):
             in_fence = not in_fence
             continue
         m = None if in_fence else re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", line)
