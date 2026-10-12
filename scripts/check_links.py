@@ -2,8 +2,11 @@
 """Check that every link a reader can follow in the README and the spec opens.
 
 Link targets are taken from inline links `[text](target)`, reference
-definitions `[label]: target` and autolinks `<https://...>`, outside fenced
-code blocks and inline code spans. A relative target must name a file in this
+definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
+URLs in prose, which GitHub also renders as links, outside fenced code blocks
+and inline code spans. A bare URL ends at whitespace or `<`, and trailing
+punctuation and an unbalanced `)` are not part of it, as on GitHub. HTML
+comments are not excluded. A relative target must name a file in this
 repository, and its `#fragment`, when present on a Markdown file, must match a
 heading there. An absolute http(s) target is requested anonymously and must
 answer with a success status after redirects: a repository that is private
@@ -28,6 +31,23 @@ INLINE = re.compile(r"\]\(([^)\s]+)\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 AUTOLINK = re.compile(r"<(https?://[^>\s]+)>")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
+# The whole of an inline link, text included, so a URL used as link text is
+# not read a second time as a bare URL.
+INLINE_SPAN = re.compile(r"\[[^\]]*\]\([^)\s]+\)")
+BARE = re.compile(r"https?://[^\s<>]+")
+BARE_TRAILING = ".,:;!?\"'*_~"
+
+
+def bare_url(text: str) -> str:
+    """Drop the trailing characters GitHub leaves out of a bare URL link."""
+    while text:
+        if text[-1] in BARE_TRAILING:
+            text = text[:-1]
+        elif text[-1] == ")" and text.count(")") > text.count("("):
+            text = text[:-1]
+        else:
+            break
+    return text
 
 
 def link_targets(text: str) -> list:
@@ -44,6 +64,11 @@ def link_targets(text: str) -> list:
         for pattern in (INLINE, REFDEF, AUTOLINK):
             for m in pattern.finditer(line):
                 found.append((n, m.group(1)))
+        prose = line
+        for pattern in (INLINE_SPAN, REFDEF, AUTOLINK):
+            prose = pattern.sub(" ", prose)
+        for m in BARE.finditer(prose):
+            found.append((n, bare_url(m.group(0))))
     return found
 
 

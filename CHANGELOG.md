@@ -6,9 +6,52 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
-Change process: the percent-encoding entry below changes the ABNF, so Section 9
-applies: the revision that carries it takes a version bump, and the 7-day quiet
-period starts the day its pull request opens.
+### Fixed
+
+- **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
+  the README, the specification, the CHANGELOG and `examples/*.json` (9 files),
+  while the family spec-drift check `did-example-forms` reads every Markdown and
+  JSON file in the repository, so a `did:opena2a` string in
+  `examples/conformance/`, `registries/` or `MAINTAINERS.md` could turn that
+  check red unnoticed. It now reads every `.md` and `.json` file outside hidden
+  directories (13 files). The README and Section 3.1.2 now also say that it
+  fails when a percent-encoded `did:opena2a` string is spelled out anywhere
+  other than Section 3.1.1.
+- **`scripts/check_examples.py --live` on a network error.** A DNS failure,
+  refused connection or timeout is reported as a problem for each DID, with
+  exit 1, instead of ending the run with a traceback.
+- **`scripts/check_links.py` checks bare URLs.** A bare `https://` URL in prose,
+  which GitHub renders as a link, is now followed like the other link forms.
+- **CHANGELOG 0.3.0.** The percent-encoding and `scripts/check_did_syntax.py`
+  entries moved from [Unreleased] to 0.3.0, the revision whose header and
+  Section 3.1 carry the ABNF change, and the spec's status section names the
+  change. The 0.3.0 change-process paragraph said the quiet period would start
+  when the pull request opened; it now records when the revision's pull
+  requests opened and merged.
+
+## [0.3.0] - 2026-10-11
+
+Change process: this revision changes the ABNF (Sections 3.1 and 3.1.2) and the
+security model (Sections 4.2, 6.1 and 6.5), so Section 9 applies: a version
+bump, review by the editors and a 7-day quiet period before merge. The security
+model change merged in pull request #30 and the ABNF change in pull request #32;
+each opened and merged on 2026-10-12 (UTC), so neither had the quiet period.
+The revision remains a draft.
+
+### Security
+
+- **Resolved `id` must be the requested DID (Sections 4.2, 6.1, 6.5).** A
+  registry replies with a document whose `id` equals the requested DID, or with
+  `404`; it never answers an unregistered DID with another document, its own
+  registry DID Document included. A verifier rejects a resolution whose `id`
+  differs from the DID it requested; the issuing-registry check does not catch
+  that substitution. Section 9 applies: this entry changes the security model,
+  so the revision that carries it is a version bump with the 7-day quiet period.
+  Implementation status (measured 2026-10-11): the reference deployment answers
+  every `did:opena2a:registry:<authority>` DID, `registry:evil.test` included,
+  with `200` and its own registry DID Document; an unregistered `agent` DID
+  returns `404` with a body that does not identify the missing resource; the
+  resolver change is open.
 
 ### Changed
 
@@ -41,28 +84,6 @@ period starts the day its pull request opens.
   percent-encoded `did:opena2a` string is spelled out only in Section 3.1.1 of
   the specification, and checks the Section 3.1.2 decoding step against
   encoded and invalid vectors. python3 standard library only.
-
-## [0.3.0] - 2026-10-11
-
-Change process: this revision changes the security model (Sections 4.2, 6.1
-and 6.5), so Section 9 applies. The 7-day quiet period starts on 2026-10-12,
-the day the pull request for this revision opens; the earliest merge date is
-2026-10-19.
-
-### Security
-
-- **Resolved `id` must be the requested DID (Sections 4.2, 6.1, 6.5).** A
-  registry replies with a document whose `id` equals the requested DID, or with
-  `404`; it never answers an unregistered DID with another document, its own
-  registry DID Document included. A verifier rejects a resolution whose `id`
-  differs from the DID it requested; the issuing-registry check does not catch
-  that substitution. Section 9 applies: this entry changes the security model,
-  so the revision that carries it is a version bump with the 7-day quiet period.
-  Implementation status (measured 2026-10-11): the reference deployment answers
-  every `did:opena2a:registry:<authority>` DID, `registry:evil.test` included,
-  with `200` and its own registry DID Document; an unregistered `agent` DID
-  returns `404` with a body that does not identify the missing resource; the
-  resolver change is open.
 
 ### Fixed
 

@@ -26,7 +26,7 @@ This is revision 0.3 of the `did:opena2a` method specification. The method is re
 
 Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
 
-Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
+Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). It also changes the ABNF: the `resource-id` admits percent-encoded triplets, and Section 3.1.2 defines the decoding step that gives such a DID its canonical form. The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
 
 Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
 
@@ -124,7 +124,7 @@ Two `did:opena2a` DIDs denote the same DID subject exactly when their canonical 
 
 This decoding applies to the DID string. It is separate from, and follows, any URL decoding that a transport applies to a request carrying the DID (Section 8.4).
 
-`scripts/check_did_syntax.py` compiles the ABNF of Section 3.1 from this document, checks every `did:opena2a` string in this repository against it, and checks this decoding step against a set of encoded and invalid vectors.
+`scripts/check_did_syntax.py` compiles the ABNF of Section 3.1 from this document, checks every `did:opena2a` string in the repository's Markdown and JSON files against it, and checks this decoding step against a set of encoded and invalid vectors. It also fails when a percent-encoded `did:opena2a` string is spelled out anywhere other than Section 3.1.1, the one place the family spec-drift check `did-example-forms` excludes; other sections refer to Section 3.1.1 instead of repeating the encoded form.
 
 ### 3.2 Resource type registry
 

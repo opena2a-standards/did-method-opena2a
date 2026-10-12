@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Tests for check_did_syntax.py. python3 standard library only.
+
+Run from the repository root: python3 -m unittest discover -s scripts
+"""
+from __future__ import annotations
+
+import contextlib
+import io
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+SCRIPTS = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPTS))
+
+import check_did_syntax
+
+REPO = SCRIPTS.parent
+SPEC_NAME = "did-method-opena2a.md"
+
+
+class ReadsTheFamilyCheckFiles(unittest.TestCase):
+    def test_reads_markdown_and_json_files_outside_the_original_four_sources(self):
+        names = {p.relative_to(REPO).as_posix() for p in check_did_syntax.sources()}
+        for name in ("MAINTAINERS.md", "registries/resource-types.json",
+                     "examples/conformance/agent.json", "examples/agent.json",
+                     "README.md", "CHANGELOG.md", SPEC_NAME):
+            self.assertIn(name, names)
+
+
+class ScratchRepository(unittest.TestCase):
+    """Run main() against a scratch root holding a copy of the specification."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        shutil.copy(REPO / SPEC_NAME, self.root / SPEC_NAME)
+        patcher = mock.patch.multiple(check_did_syntax, ROOT=self.root, SPEC=self.root / SPEC_NAME)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def write(self, name: str, text: str) -> None:
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def run_main(self) -> tuple:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            status = check_did_syntax.main()
+        return status, out.getvalue(), err.getvalue()
+
+    def test_specification_alone_passes(self):
+        status, out, err = self.run_main()
+        self.assertEqual((status, err), (0, ""))
+        self.assertIn(" in 1 files,", out)
+
+    def test_non_parsing_did_in_a_registries_json_file_fails(self):
+        self.write("registries/extra.json", '{"id": "did:opena2a:Agent:example"}\n')
+        status, _, err = self.run_main()
+        self.assertEqual(status, 1)
+        self.assertIn("does not parse: did:opena2a:Agent:example (registries/extra.json:1)", err)
+
+    def test_non_parsing_did_in_nested_markdown_fails(self):
+        self.write("examples/conformance/notes.md", "See did:opena2a:agent: for the shape.\n")
+        status, _, err = self.run_main()
+        self.assertEqual(status, 1)
+        self.assertIn("examples/conformance/notes.md:1", err)
+
+    def test_percent_encoded_did_outside_section_3_1_1_fails(self):
+        self.write("MAINTAINERS.md", "did:opena2a:skill:web%2Dresearch\n")
+        status, _, err = self.run_main()
+        self.assertEqual(status, 1)
+        self.assertIn("percent-encoded form outside Section 3.1.1", err)
+        self.assertIn("MAINTAINERS.md:1", err)
+
+    def test_hidden_directories_are_not_read(self):
+        self.write(".github/notes.md", "did:opena2a:Agent:example\n")
+        status, _, err = self.run_main()
+        self.assertEqual((status, err), (0, ""))
+
+
+if __name__ == "__main__":
+    unittest.main()
