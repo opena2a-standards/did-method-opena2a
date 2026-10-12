@@ -39,6 +39,19 @@ class BareUrls(unittest.TestCase):
         self.assertEqual(targets("Run `curl https://example.org/x` first.\n"), [])
         self.assertEqual(targets("```\ncurl https://example.org/x\n```\n"), [])
 
+    def test_url_is_given_the_line_it_is_on_within_its_paragraph(self):
+        text = 'Text\n<a href="https://example.org/a">t</a>\nhttps://example.org/b\n'
+        self.assertEqual(check_links.link_targets(text),
+                         [(2, "https://example.org/a"), (3, "https://example.org/b")])
+
+    def test_targets_are_in_line_order_with_link_forms_before_prose_urls_on_a_line(self):
+        self.assertEqual(check_links.link_targets("https://example.org/a\n"
+                                                  "[t](https://example.org/b)\n"),
+                         [(1, "https://example.org/a"), (2, "https://example.org/b")])
+        text = "https://example.org/a [t](https://example.org/b)\n"
+        self.assertEqual(check_links.link_targets(text),
+                         [(1, "https://example.org/b"), (1, "https://example.org/a")])
+
     def test_linked_url_is_read_once(self):
         text = ("[https://example.org/a](https://example.org/a) and <https://example.org/b>\n"
                 "[ref]: https://example.org/c\n")
@@ -144,6 +157,22 @@ class HtmlAttributes(unittest.TestCase):
                                  'https://example.org/d\n'),
                          ["https://example.org/abc", "https://example.org/d"])
 
+    def test_value_on_later_lines_closes_only_where_a_tag_can_go_on(self):
+        self.assertEqual(targets('<a href="https://example.org/a\nb" title="t">t</a>\n'),
+                         ["https://example.org/ab"])
+        self.assertEqual(targets('<img src="https://example.org/a\nb"/>\n'),
+                         ["https://example.org/ab"])
+        self.assertEqual(targets('<a href="https://example.org/a\nb"\n>t</a>\n'),
+                         ["https://example.org/ab"])
+
+    def test_unclosed_value_does_not_take_a_quote_in_the_prose_below_it(self):
+        self.assertEqual(check_links.link_targets('x="https://example.org/a\n'
+                                                  'say "hi" https://example.org/b\n'),
+                         [(1, "https://example.org/a"), (2, "https://example.org/b")])
+        self.assertEqual(targets("x='https://example.org/a\nit's here\n"),
+                         ["https://example.org/a"])
+        self.assertEqual(targets('x="https://example.org/a\nend"\n'), ["https://example.org/a"])
+
     def test_value_does_not_continue_past_a_blank_line(self):
         self.assertEqual(targets('<a href="https://example.org/a\n\nb">t</a>\n'),
                          ["https://example.org/a"])
@@ -230,6 +259,11 @@ class RequestUrls(unittest.TestCase):
         self.assertEqual(check_links.request_url("https://example.org/x "),
                          "https://example.org/x%C2%A0")
 
+    def test_host_is_not_percent_encoded(self):
+        self.assertEqual(check_links.request_url("https://exämple.org/ä"),
+                         "https://exämple.org/%C3%A4")
+        self.assertEqual(check_links.request_url("http://exämple.org"), "http://exämple.org")
+
     def test_empty_query_and_fragment_are_kept(self):
         self.assertEqual(check_links.request_url("https://example.org/a b?"),
                          "https://example.org/a%20b?")
@@ -299,6 +333,10 @@ class LongLines(unittest.TestCase):
 
     def test_run_of_unclosed_attribute_values(self):
         self.assert_linear("", "='https://a<", ' <a href="https://example.org/x">',
+                           "https://example.org/x")
+
+    def test_run_of_lines_each_holding_an_unclosed_attribute_value(self):
+        self.assert_linear("", 'x="https://a\n', ' <a href="https://example.org/x">',
                            "https://example.org/x")
 
     def test_run_of_letters_after_an_ampersand_in_an_attribute_value(self):
