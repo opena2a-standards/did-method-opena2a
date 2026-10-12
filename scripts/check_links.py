@@ -13,7 +13,10 @@ to the quote that closes the value, whitespace, `<` and line breaks included,
 up to a blank line, and may follow whitespace written as such or as a
 character reference. A value that runs onto a later line is read as one only
 when its closing quote is followed by whitespace, `/>` or `>`, as in a tag;
-otherwise its URL is read as a bare URL. Its character references are
+otherwise its URL is read as a bare URL. The line break at the end of the last
+line before a blank line, a fenced code block or the end of the file does not
+count as that whitespace, so a quote that ends that line does not close a
+value whose URL starts on an earlier line. Its character references are
 decoded with html.unescape, except that a named reference without its `;` is
 kept as written when `=` or an ASCII letter or digit follows it, as a browser
 keeps `&sect` in `&section=2`. Leading and trailing C0 controls and spaces
@@ -81,10 +84,13 @@ LEADING = (r"(?:[\x00-\x20]|&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
 # of the tag is not read into it; any other is a bare URL. A value that runs
 # onto a later line is read only when its closing quote is followed by
 # whitespace, `/>` or `>`, as in a tag, so an unclosed value does not take the
-# opening quote of a quotation in the prose below it as its own. A value is
-# read only to the first quote of its own kind, and the quote that opens the
-# next value of that kind is one, so only the last value of each kind can be
-# read to the end of its block of lines.
+# opening quote of a quotation that starts with a letter, such as "hi", in the
+# prose below it as its own. A block ends at a blank line, a fenced code block
+# or the end of the file, and its lines are joined without a line break after
+# the last, so a quote that ends its last line does not close a value whose URL
+# starts on an earlier line. A value is read only to the first quote of its own
+# kind, and the quote that opens the next value of that kind is one, so only
+# the last value of each kind can be read to the end of its block of lines.
 URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?:(?!\1)[^\n])*(?=\1)"""
                  rf"""|(?:(?!\1).)*(?=\1(?:\s|/?>))))\1|https?://[^\s<]+""",
                  re.DOTALL)

@@ -73,7 +73,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   blank line, with the line break removed, when that quote is followed by
   whitespace, `/>` or `>`, as in a tag; otherwise its URL is read as a bare
   URL, as before, so an unclosed `x="https://example.org/a` does not take the
-  opening quote of `"hi"` on the next line as its own. The character
+  opening quote of `"hi"` on the next line as its own. The line break at the
+  end of the last line before a blank line, a fenced code block or the end of
+  the file does not count as that whitespace, so a quote that ends that line
+  does not close a value whose URL starts on an earlier line. The character
   references in an inline link or reference definition target are decoded as
   CommonMark decodes them, so `[a](https://example.org/?a=1&amp;b=2)` gives
   `https://example.org/?a=1&b=2`. A URL that is percent-encoded for the request
