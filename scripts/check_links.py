@@ -6,23 +6,29 @@ definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
 and inline code spans. A bare URL ends at whitespace or `<`, and trailing
 punctuation and an unbalanced `)` are not part of it, as on GitHub. A URL that
-opens a quoted HTML attribute value, as in `<a href="...">`, ends at the quote
-that closes the value. An inline link target may hold parentheses in balanced
-pairs, one level deep. HTML comments are not excluded. A relative target must
-name a file in this repository, and its `#fragment`, when present on a
-Markdown file, must match a heading there. An absolute http(s) target is
-requested anonymously and must answer with a success status after redirects:
-a repository that is private answers 404 to an anonymous reader, which is the
+opens a quoted HTML attribute value, as in `<a href="...">`, runs to the quote
+that closes the value, whitespace and `<` included, and is read as a browser
+reads it: character references such as `&amp;` are decoded, leading and
+trailing whitespace is dropped and tabs and newlines are removed. An inline
+link target may hold parentheses in balanced pairs, one level deep. HTML
+comments are not excluded. A relative target must name a file in this
+repository, and its `#fragment`, when present on a Markdown file, must match a
+heading there. An absolute http(s) target is requested anonymously, with a
+space, control or non-ASCII character after the host percent-encoded as a
+browser does, and must answer with a success status after redirects: a
+repository that is private answers 404 to an anonymous reader, which is the
 failure this check exists to catch. `--offline` skips the network requests.
 python3 standard library only.
 """
 from __future__ import annotations
 
 import argparse
+import html
 import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -48,10 +54,20 @@ CODE_SPAN = re.compile(r"`+[^`]*`+")
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
 # A URL outside the link forms above. One that opens a quoted HTML attribute
-# value (href="...", src='...') ends at the quote that closes the value, so
-# the rest of the tag is not read into it; any other is a bare URL.
-URL = re.compile(r"""=\s*(["'])(https?://(?:(?!\1)[^\s<])*)\1|https?://[^\s<]+""")
+# value (href="...", src='...') runs to the quote that closes the value, so
+# the rest of the tag is not read into it; any other is a bare URL. A value
+# stops at the first quote of its own kind, and every value that opens holds a
+# quote of that kind, so only the last value of each kind can fail to close
+# and be read to the end of the line.
+URL = re.compile(r"""=\s*(["'])(https?://(?:(?!\1).)*)\1|https?://[^\s<]+""")
 BARE_TRAILING = ".,:;!?\"'*_~"
+# What the WHATWG URL parser strips from both ends of a URL, and removes from
+# within it.
+C0_OR_SPACE = "".join(map(chr, range(0x21)))
+TAB_OR_NEWLINE = re.compile("[\t\n\r]")
+# Characters http.client will not send, and a browser percent-encodes after
+# the host: whitespace, controls and anything outside ASCII.
+UNSENDABLE = re.compile(r"[^\x21-\x7e]+")
 
 
 def bare_url(text: str) -> str:
@@ -67,6 +83,25 @@ def bare_url(text: str) -> str:
         else:
             break
     return text[:end]
+
+
+def attribute_url(value: str) -> str:
+    """The URL a browser follows from a quoted HTML attribute value."""
+    return TAB_OR_NEWLINE.sub("", html.unescape(value).strip(C0_OR_SPACE))
+
+
+def request_url(url: str) -> str:
+    """The URL as a browser requests it, with what follows the host
+    percent-encoded where http.client would refuse to send it."""
+    if not UNSENDABLE.search(url):
+        return url
+    parts = urllib.parse.urlsplit(url)
+
+    def encode(s: str) -> str:
+        return UNSENDABLE.sub(lambda m: urllib.parse.quote(m.group()), s)
+
+    return urllib.parse.urlunsplit(parts._replace(
+        path=encode(parts.path), query=encode(parts.query), fragment=encode(parts.fragment)))
 
 
 def link_targets(text: str) -> list:
@@ -87,7 +122,7 @@ def link_targets(text: str) -> list:
         for pattern in (INLINE_SPAN, REFDEF, AUTOLINK):
             prose = pattern.sub(" ", prose)
         for m in URL.finditer(prose):
-            found.append((n, m.group(2) if m.group(1) else bare_url(m.group(0))))
+            found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
     return found
 
 
@@ -122,7 +157,7 @@ def check_relative(doc: Path, target: str) -> str | None:
 
 
 def check_remote(url: str) -> str | None:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    request = urllib.request.Request(request_url(url), headers={"User-Agent": USER_AGENT})
     for attempt in range(2):
         try:
             with urllib.request.urlopen(request, timeout=20) as response:

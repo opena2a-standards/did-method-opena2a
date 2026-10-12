@@ -70,6 +70,37 @@ class HtmlAttributes(unittest.TestCase):
         self.assertEqual(targets('<a href="https://example.org/it\'s.">text</a>\n'),
                          ["https://example.org/it's."])
 
+    def test_value_runs_past_whitespace_and_less_than_to_the_closing_quote(self):
+        self.assertEqual(targets('<a href="https://example.org/a b">t</a>\n'),
+                         ["https://example.org/a b"])
+        self.assertEqual(targets('<a href="https://example.org/?q=<x>">t</a>\n'),
+                         ["https://example.org/?q=<x>"])
+
+    def test_character_references_in_the_value_are_decoded(self):
+        self.assertEqual(targets('<a href="https://example.org/?a=1&amp;b=2">t</a>\n'),
+                         ["https://example.org/?a=1&b=2"])
+        self.assertEqual(targets("<a href='https://example.org/it&#39;s'>t</a>\n"),
+                         ["https://example.org/it's"])
+
+    def test_whitespace_is_dropped_from_the_value_as_a_browser_does(self):
+        self.assertEqual(targets('<a href="https://example.org/x ">t</a>\n'),
+                         ["https://example.org/x"])
+        self.assertEqual(targets('<a href="https://example.org/a&#9;b&#10;c">t</a>\n'),
+                         ["https://example.org/abc"])
+
+    def test_whitespace_between_the_equals_sign_and_the_quote(self):
+        # No space after the closing quote, so a bare URL would run into the tag.
+        self.assertEqual(targets('<a href = "https://example.org/x">text</a>\n'),
+                         ["https://example.org/x"])
+
+    def test_http_url_in_an_attribute(self):
+        self.assertEqual(targets('<a href="http://example.org/x">text</a>\n'),
+                         ["http://example.org/x"])
+
+    def test_quoted_url_that_is_not_an_attribute_value_is_a_bare_url(self):
+        self.assertEqual(targets('Say "https://example.org/a b" here.\n'),
+                         ["https://example.org/a"])
+
     def test_attribute_on_a_continuation_line_of_its_tag(self):
         self.assertEqual(targets('<a\n  href="https://example.org/x">text</a>\n'),
                          ["https://example.org/x"])
@@ -96,6 +127,16 @@ class InlineLinks(unittest.TestCase):
     def test_target_can_hold_a_later_link_that_closes(self):
         self.assertEqual(targets("[a](x[b](y))\n"), ["x[b](y)"])
         self.assertEqual(targets("[a](x[b](y)\n"), ["y"])
+
+
+class RequestUrls(unittest.TestCase):
+    def test_url_of_printable_ascii_is_requested_as_written(self):
+        url = "https://example.org/a/b?q=<x>&r=%20#top"
+        self.assertEqual(check_links.request_url(url), url)
+
+    def test_space_control_and_non_ascii_after_the_host_are_percent_encoded(self):
+        self.assertEqual(check_links.request_url("https://example.org/a b?q=\x01é#c d"),
+                         "https://example.org/a%20b?q=%01%C3%A9#c%20d")
 
 
 class LongLines(unittest.TestCase):
