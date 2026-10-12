@@ -5,14 +5,16 @@ Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
 and inline code spans. A bare URL ends at whitespace or `<`, and trailing
-punctuation and an unbalanced `)` are not part of it, as on GitHub. An inline
-link target may hold parentheses in balanced pairs, one level deep. HTML
-comments are not excluded. A relative target must name a file in this
-repository, and its `#fragment`, when present on a Markdown file, must match a
-heading there. An absolute http(s) target is requested anonymously and must
-answer with a success status after redirects: a repository that is private
-answers 404 to an anonymous reader, which is the failure this check exists to
-catch. `--offline` skips the network requests. python3 standard library only.
+punctuation and an unbalanced `)` are not part of it, as on GitHub. A URL that
+opens a quoted HTML attribute value, as in `<a href="...">`, ends at the quote
+that closes the value. An inline link target may hold parentheses in balanced
+pairs, one level deep. HTML comments are not excluded. A relative target must
+name a file in this repository, and its `#fragment`, when present on a
+Markdown file, must match a heading there. An absolute http(s) target is
+requested anonymously and must answer with a success status after redirects:
+a repository that is private answers 404 to an anonymous reader, which is the
+failure this check exists to catch. `--offline` skips the network requests.
+python3 standard library only.
 """
 from __future__ import annotations
 
@@ -29,10 +31,14 @@ DOCS = ["README.md", "did-method-opena2a.md"]
 USER_AGENT = "did-method-opena2a-link-check"
 
 # An inline link destination has no whitespace and holds parentheses only in
-# balanced pairs, one level deep (CommonMark). It cannot cross the "(" that
-# opens the next inline link, link text cannot hold a "[", and an autolink
-# cannot hold a "<", so a match that fails stops at the next link and a long
-# line is read in linear time.
+# balanced pairs, as in CommonMark, limited here to one level of nesting;
+# link text cannot hold a "[" and an autolink cannot hold a "<". CommonMark
+# allows deeper nesting and matched brackets in link text: both limits are
+# this script's simplifications. A destination runs past the "(" that opens a
+# later inline link only when that "(" opens a balanced pair, and the later
+# link is then read within its own pair. So no part of a line is read by more
+# than a fixed number of failed matches, and a long line is read in linear
+# time.
 DEST = r"(?:[^()\s]|\([^()\s]*\))+"
 INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
@@ -41,7 +47,10 @@ CODE_SPAN = re.compile(r"`+[^`]*`+")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
-BARE = re.compile(r"https?://[^\s<]+")
+# A URL outside the link forms above. One that opens a quoted HTML attribute
+# value (href="...", src='...') ends at the quote that closes the value, so
+# the rest of the tag is not read into it; any other is a bare URL.
+URL = re.compile(r"""=\s*(["'])(https?://(?:(?!\1)[^\s<])*)\1|https?://[^\s<]+""")
 BARE_TRAILING = ".,:;!?\"'*_~"
 
 
@@ -77,8 +86,8 @@ def link_targets(text: str) -> list:
         prose = line
         for pattern in (INLINE_SPAN, REFDEF, AUTOLINK):
             prose = pattern.sub(" ", prose)
-        for m in BARE.finditer(prose):
-            found.append((n, bare_url(m.group(0))))
+        for m in URL.finditer(prose):
+            found.append((n, m.group(2) if m.group(1) else bare_url(m.group(0))))
     return found
 
 

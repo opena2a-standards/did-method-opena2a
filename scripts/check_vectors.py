@@ -14,10 +14,15 @@ resolved-id rejection. python3 standard library only.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
 from pathlib import Path
+
+# check_did_syntax.py sits beside this script. Python leaves the script
+# directory off sys.path under -P, -I and PYTHONSAFEPATH=1, so add it here.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from check_did_syntax import SPEC, Compiler, canonical_form, parse_rules, read_grammar
 
@@ -35,13 +40,25 @@ def grammar() -> tuple:
     return re.compile(compiler.rule("opena2a-did")), re.compile(compiler.rule("resource-id"))
 
 
+def member(result: dict, name: str) -> dict:
+    """An object-valued member of a resolution result; absent or null reads as empty."""
+    value = result.get(name)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError(f"{name} is not an object")
+    return value
+
+
 def verify(requested: str, result: dict, did_rx, rid_rx, pinned: str = PINNED_REGISTRY) -> tuple:
     """Return (verdict, reason) for one resolution under Sections 3.5 and 6.5."""
     canonical = canonical_form(requested, did_rx, rid_rx)
     if canonical is None:
         raise ValueError(f"requested DID does not parse or decode (Section 3.1.2): {requested!r}")
-    document = result.get("didDocument") or {}
-    metadata = result.get("didDocumentMetadata") or {}
+    if not isinstance(result, dict):
+        raise ValueError("resolutionResult is not an object")
+    document = member(result, "didDocument")
+    metadata = member(result, "didDocumentMetadata")
     if metadata.get("issuingRegistry") != pinned:
         return "reject", "issuing-registry-mismatch"
     if document.get("id") != canonical:
@@ -53,7 +70,10 @@ def label(verdict: str, reason) -> str:
     return f"{verdict} {reason}" if reason else verdict
 
 
-def main() -> int:
+def main(argv: list | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.parse_args(argv)
     paths = sorted(VECTORS.glob("*.json"))
     if not paths:
         print(f"no vectors under {VECTORS.relative_to(ROOT)}/", file=sys.stderr)

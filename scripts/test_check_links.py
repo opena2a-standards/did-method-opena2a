@@ -48,6 +48,36 @@ class BareUrls(unittest.TestCase):
         self.assertEqual(targets("https://example.org/a>b\n"), ["https://example.org/a>b"])
         self.assertEqual(targets("https://example.org/a<b\n"), ["https://example.org/a"])
 
+    def test_quotation_mark_inside_a_bare_url_does_not_end_it(self):
+        self.assertEqual(targets('https://example.org/a"b c\n'), ['https://example.org/a"b'])
+        self.assertEqual(targets('https://example.org/?q="a"&r=1 next\n'),
+                         ['https://example.org/?q="a"&r=1'])
+        self.assertEqual(targets('See "https://example.org/x".\n'), ["https://example.org/x"])
+
+
+class HtmlAttributes(unittest.TestCase):
+    def test_url_in_a_quoted_attribute_ends_at_the_closing_quote(self):
+        self.assertEqual(targets('<a href="https://example.org/x">text</a>\n'),
+                         ["https://example.org/x"])
+        self.assertEqual(targets('<p><img src="https://example.org/logo.png"></p>\n'),
+                         ["https://example.org/logo.png"])
+        self.assertEqual(targets("<a href='https://example.org/x'>text</a>\n"),
+                         ["https://example.org/x"])
+        self.assertEqual(targets('<a href = "https://example.org/x" title="t">text</a>\n'),
+                         ["https://example.org/x"])
+
+    def test_attribute_value_is_read_as_written(self):
+        self.assertEqual(targets('<a href="https://example.org/it\'s.">text</a>\n'),
+                         ["https://example.org/it's."])
+
+    def test_attribute_on_a_continuation_line_of_its_tag(self):
+        self.assertEqual(targets('<a\n  href="https://example.org/x">text</a>\n'),
+                         ["https://example.org/x"])
+
+    def test_url_between_the_tags_is_still_a_bare_url(self):
+        self.assertEqual(targets('<a href="https://example.org/x">https://example.org/y</a>.\n'),
+                         ["https://example.org/x", "https://example.org/y"])
+
 
 class InlineLinks(unittest.TestCase):
     def test_balanced_parenthesis_stays_in_the_target(self):
@@ -57,6 +87,15 @@ class InlineLinks(unittest.TestCase):
 
     def test_unbalanced_parenthesis_is_not_a_link(self):
         self.assertEqual(targets("[a](b(c)\n"), [])
+
+    def test_parentheses_nested_two_levels_deep_are_not_a_link(self):
+        # CommonMark reads this as a link to a((b)); the one-level limit is
+        # this script's simplification.
+        self.assertEqual(targets("[x](a((b)))\n"), [])
+
+    def test_target_can_hold_a_later_link_that_closes(self):
+        self.assertEqual(targets("[a](x[b](y))\n"), ["x[b](y)"])
+        self.assertEqual(targets("[a](x[b](y)\n"), ["y"])
 
 
 class LongLines(unittest.TestCase):
@@ -87,6 +126,13 @@ class LongLines(unittest.TestCase):
 
     def test_bare_url_ending_in_closing_parentheses(self):
         self.assert_linear("https://example.org/x", ")", "", "https://example.org/x")
+
+    def test_unclosed_target_followed_by_a_run_of_closed_links(self):
+        self.assert_linear("[a](x", "[b](y)", " [a](b)", "y")
+
+    def test_run_of_unclosed_attribute_values(self):
+        self.assert_linear("", "='https://a<", ' <a href="https://example.org/x">',
+                           "https://example.org/x")
 
 
 if __name__ == "__main__":
