@@ -214,9 +214,15 @@ def prose_urls(block: list) -> list:
             # The last attribute part that starts at or before the `=`.
             i = bisect.bisect_right(tags, (m.start(), len(text))) - 1
             if i < 0 or tags[i][1] <= m.start():
-                # Outside a start tag the URL is read as a bare URL, from the
-                # scheme on: only whitespace and its references precede it.
+                # Outside a start tag the quote opens no value, and the search
+                # goes on after it. No URL starts in what LEADING matches
+                # between the quote and the scheme, so the first it can find
+                # is the bare URL at the scheme. When whitespace or `<` follows
+                # the scheme no bare URL starts there, and it finds a later
+                # URL, which may be another value outside a start tag, or
+                # none: the loop tests what it found.
                 m = URL.search(text, m.start(2))
+                continue
         n = block[bisect.bisect_right(starts, m.start()) - 1][0]
         found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
         m = URL.search(text, m.end())

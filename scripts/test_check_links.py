@@ -185,6 +185,26 @@ class HtmlAttributes(unittest.TestCase):
             self.assertEqual(check_links.link_targets(text), [(1, "https://example.org/a")],
                              text)
 
+    def test_value_outside_a_start_tag_with_no_bare_url_at_its_scheme_is_not_a_target(self):
+        # Whitespace or `<` follows the scheme, and the block holds no other URL.
+        for text in ('x="https://\nb" c\n',
+                     'x="https:// foo\nbar" baz\n',
+                     "x='http://\nb'>\n",
+                     'Set href="https://<your-host>/callback\nto your host name" first.\n'):
+            self.assertEqual(check_links.link_targets(text), [], text)
+
+    def test_text_after_the_opening_quote_of_such_a_value_is_read_as_any_other(self):
+        # The second value is outside a start tag too, so its URL is a bare URL.
+        self.assertEqual(check_links.link_targets('x="https://\ny=\'https://example.org/a\n'
+                                                  'the users\' guide" z\n'),
+                         [(2, "https://example.org/a")])
+        # The second value is in a start tag, so it is read across lines.
+        self.assertEqual(check_links.link_targets('x="https://\n<a href=\'https://example.org/a\n'
+                                                  'b\'>t</a>" z\n'),
+                         [(2, "https://example.org/ab")])
+        self.assertEqual(check_links.link_targets('x="https://\nb" c https://example.org/d\n'),
+                         [(2, "https://example.org/d")])
+
     def test_value_in_a_start_tag_that_opens_on_an_earlier_line_is_read_across_lines(self):
         self.assertEqual(check_links.link_targets('<a\n  href="https://example.org/a\nb">t</a>\n'),
                          [(2, "https://example.org/ab")])
