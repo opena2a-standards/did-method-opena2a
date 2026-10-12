@@ -40,10 +40,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   retry from every position: a line of 40,000 `[` took 0.52 s and a line of
   40,000 `[a](` took 49 s, fourfold per doubling. Link text no longer holds a
   `[`, an autolink no longer holds a `<`, and an inline link target holds
-  parentheses only in balanced pairs, one level deep, as in CommonMark. The
-  targets read from the README and the spec are unchanged.
+  parentheses only in balanced pairs, as in CommonMark, limited here to one
+  level of nesting. The one-level limit and link text without a `[` are this
+  script's simplifications: CommonMark allows deeper nesting and matched
+  brackets in link text. The targets read from the README and the spec are
+  unchanged.
 - **`scripts/check_links.py` ends a bare URL at whitespace or `<` only**, as
   GitHub and its docstring do; a `>` no longer ends it.
+- **`scripts/check_links.py` ends a URL in an HTML attribute at the closing
+  quote.** Once a `>` no longer ended a bare URL, the rest of an HTML tag was
+  read into a URL held in an attribute:
+  `<a href="https://example.org/x">text</a>` gave the target
+  `https://example.org/x">text`. A URL that opens a quoted attribute value now
+  ends at the quote that closes the value. The README and the spec hold no
+  such tag, so the targets read from them are unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run
@@ -51,6 +61,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **`scripts/check_did_syntax.py --help` prints usage.** The script ran the
   check whatever arguments it was given; `--help` now prints the usage, and an
   unknown argument exits 2 without running the check.
+- **`scripts/check_vectors.py --help` prints usage.** The script read no
+  arguments, so `--help` ran the check and an unknown argument was accepted;
+  `--help` now prints the usage, and an unknown argument exits 2 without
+  running the check.
+- **`scripts/check_vectors.py` on a vector whose `resolutionResult` is not an
+  object.** A `resolutionResult`, `didDocument` or `didDocumentMetadata` that
+  is not a JSON object is reported as a malformed vector, with exit 1, instead
+  of ending the run with a traceback. A `didDocument` or `didDocumentMetadata`
+  that is absent or `null` still reads as empty.
+- **`scripts/check_vectors.py` runs under `python3 -P` and
+  `PYTHONSAFEPATH=1`.** It imports `scripts/check_did_syntax.py` and relied on
+  Python putting the script directory on `sys.path`, so it stopped with
+  `ModuleNotFoundError` when Python was told to leave that directory out. It
+  now adds the directory itself.
 - **CHANGELOG 0.3.0.** The percent-encoding and `scripts/check_did_syntax.py`
   entries moved from [Unreleased] to 0.3.0, the revision whose header and
   Section 3.1 carry the ABNF change, and the spec's status section names the
