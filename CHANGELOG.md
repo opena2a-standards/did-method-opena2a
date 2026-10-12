@@ -97,6 +97,15 @@ the day the pull request for this revision opens; the earliest merge date is
   deployment, so they moved to `examples/conformance/`. The new
   `scripts/check_examples.py` checks the file set, the 0.2 shape and the URL
   encoding, and `--live` resolves each DID.
+- **Sections 6.6, 7.1 and 7.2: offline bundle and prefix lookup.** The bundle
+  and the k-anonymous lookup cover only the DIDs whose proofs the registry
+  holds, so the text no longer says that the bundle lets a consumer verify any
+  DID offline, that the lookup returns all proofs under a prefix, or that an
+  hourly download hides all per-DID traffic. Section 7.2 names the two
+  properties these depend on (coverage of the registry's active resources and
+  a signature over the whole bundle) and states that a bundle built from
+  on-request proofs discloses recent lookups. Section 8.4 records the reference
+  deployment's measured bundle and lookup.
 
 ## [0.2.0] - 2026-09-08
 

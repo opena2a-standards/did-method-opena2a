@@ -393,7 +393,7 @@ A verifier MUST check that the `id` of the resolved DID Document equals the DID 
 Where a registry is a single deployment operated by one party, a sustained denial of service or operational failure of that deployment renders every `did:opena2a` DID it issued temporarily unresolvable. Mitigations:
 
 - The `Cache-Control: public, max-age=300` directive on Read responses permits five minutes of cached resolution per consumer.
-- A registry's signed offline bundle of all currently cached trust proofs (Section 7.2) lets a consumer verify without a live resolver.
+- A registry's offline bundle of trust proofs (Section 7.2) lets a consumer verify, without a live resolver, the DIDs whose proofs the bundle carries. It mitigates an outage only for those DIDs: a bundle built from the proofs the registry issued on request covers the DIDs someone recently requested, not the registry's active resources (Section 8.4 records the reference deployment's coverage).
 - Multiple registries and mirrors are the normal case (Section 4.2.1).
 
 This specification does not claim that `did:opena2a` is a fully decentralized DID method.
@@ -410,11 +410,14 @@ Implementations comparing DID methods for agent-identity use cases SHOULD pick t
 
 ### 7.1 Resolution traffic
 
-A `did:opena2a` resolution is a plain HTTPS request to a known registry. The registry observes which DID was requested, the requesting IP address, and the request timing. Consumers concerned about resolution-time privacy MAY use a registry's k-anonymous prefix lookup, which returns all proofs matching a DID prefix and lets the consumer disambiguate locally (Section 8.4 for the reference deployment's endpoint).
+A `did:opena2a` resolution is a plain HTTPS request to a known registry. The registry observes which DID was requested, the requesting IP address, and the request timing. Consumers concerned about resolution-time privacy MAY use a registry's k-anonymous prefix lookup, which returns the trust proofs the registry holds for DIDs matching a DID prefix and lets the consumer disambiguate locally (Section 8.4 for the reference deployment's endpoint). The lookup hides the wanted DID only when the registry holds a proof for every registered DID under the prefix. A lookup served from the proofs the registry issued on request returns only the DIDs someone recently requested; when the wanted DID is not in the result, the consumer has to resolve it directly, and that request discloses it.
 
 ### 7.2 Bundle download
 
-A registry's trust bundle endpoint returns the full set of currently cached trust proofs in a single signed payload. A consumer that downloads the bundle once per hour and queries locally exposes no per-DID resolution traffic to the registry.
+A registry's trust bundle endpoint returns, in one payload, the trust proofs the registry currently holds. A consumer that downloads the bundle once per hour and queries locally exposes no per-DID resolution traffic to the registry for the DIDs the bundle covers. Two properties of a bundle decide what that is worth:
+
+- **Coverage.** A bundle whose proofs the registry issues in advance for its active resources covers any DID a consumer may look up, and its contents reveal nothing about other consumers. A bundle built from the proofs the registry issued on request covers only the DIDs someone recently requested, sends the consumer back to per-DID resolution for every other DID, and tells every downloader which DIDs other clients recently looked up.
+- **Integrity.** A signature on each trust proof authenticates that proof. Only a signature over the bundle as a whole authenticates the set: without one, a consumer cannot tell a complete bundle from one with proofs removed, for example by a mirror that redistributes it.
 
 ### 7.3 Personally identifiable information
 
@@ -459,6 +462,8 @@ The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.o
 - Offline bundle: `GET /api/v1/trust/bundle`, refreshed hourly.
 - k-anonymous prefix lookup: `GET /api/v1/trust/private-lookup?prefix=<10+chars>`.
 - Not-found body shape: `{"error": "package not found: <type>/<id>"}`.
+
+Implementation status (measured 2026-10-12 UTC, `curl -s https://api.oa2a.org/api/v1/trust/bundle | jq -c '{keys: keys, count}'`): the reference deployment's bundle is a JSON object with the members `count`, `generatedAt`, `issuerDid` and `proofs`, and no signature over the bundle; each proof carries its own `signature` and `signatures`, and `generatedAt` was the time of the request. The bundle carried 5 proofs, issued at different times in the preceding three hours with a 24-hour `expiresAt`, which is consistent with proofs issued on request rather than for the registry's active resources: `did:opena2a:mcp_server:@modelcontextprotocol/server-github` and `did:opena2a:mcp_server:@modelcontextprotocol/server-memory` resolve and are not in it. The prefix lookup answers from the same set: `GET /api/v1/trust/private-lookup?prefix=did:opena2a:mcp_server:@modelcontextprotocol` returned only the `server-filesystem` proof that the bundle carries. On this deployment the offline and privacy properties of Sections 6.6, 7.1 and 7.2 therefore hold only for the DIDs the bundle lists, and the bundle shows every downloader which DIDs were recently requested.
 
 Example resolution against the reference deployment:
 
