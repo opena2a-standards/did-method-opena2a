@@ -12,15 +12,18 @@ GitHub. A URL in a quoted HTML attribute value, as in `<a href="...">`, runs
 to the quote that closes the value, whitespace, `<` and line breaks included,
 up to a blank line, and may follow whitespace written as such or as a
 character reference. A value that runs onto a later line is read as one only
-when its closing quote is followed by whitespace, `/>` or `>`, as in a tag;
-otherwise its URL is read as a bare URL. The line break at the end of the last
-line before a blank line, a fenced code block or the end of the file does not
-count as that whitespace, so a quote that ends that line does not close a
-value whose URL starts on an earlier line. Its character references are
-decoded with html.unescape, except that a named reference without its `;` is
-kept as written when `=` or an ASCII letter or digit follows it, as a browser
-keeps `&sect` in `&section=2`. Leading and trailing C0 controls and spaces
-are dropped and tabs and newlines are removed, as a browser does. An inline
+when it is in a start tag, after a `<`, a tag name and whitespace or `/` with
+no `<` or `>` between them and the value, and its closing quote is followed by
+whitespace, `/>` or `>`; otherwise its URL is read as a bare URL, so an
+unclosed `x="https://...` in prose is not read into the line below. The line
+break at the end of the last line before a blank line, a fenced code block or
+the end of the file does not count as that whitespace, so a quote that ends
+that line does not close a value whose URL starts on an earlier line. Its
+character references are decoded with html.unescape, except that a named
+reference without its `;` is kept as written when `=` or an ASCII letter or
+digit follows it, as a browser keeps `&sect` in `&section=2`. Leading and
+trailing C0 controls and spaces are dropped and tabs and newlines are
+removed, as a browser does. An inline
 link target may hold parentheses in balanced pairs, one level deep. HTML
 comments are not excluded. A relative target must name a file in this
 repository, and its `#fragment`, when present on a Markdown file, must match a
@@ -82,18 +85,25 @@ LEADING = (r"(?:[\x00-\x20]|&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
 # A URL outside the link forms above. One in a quoted HTML attribute value
 # (href="...", src='...') runs to the quote that closes the value, so the rest
 # of the tag is not read into it; any other is a bare URL. A value that runs
-# onto a later line is read only when its closing quote is followed by
-# whitespace, `/>` or `>`, as in a tag, so an unclosed value does not take the
-# opening quote of a quotation that starts with a letter, such as "hi", in the
-# prose below it as its own. A block ends at a blank line, a fenced code block
-# or the end of the file, and its lines are joined without a line break after
-# the last, so a quote that ends its last line does not close a value whose URL
-# starts on an earlier line. A value is read only to the first quote of its own
-# kind, and the quote that opens the next value of that kind is one, so only
-# the last value of each kind can be read to the end of its block of lines.
+# onto a later line, group 3, is read only when its closing quote is followed
+# by whitespace, `/>` or `>`, as in a tag, and prose_urls keeps it only when
+# its `=` is in the attribute part of a start tag (START_TAG), so an unclosed
+# value in prose does not take a later quote, such as the one in "the users'
+# guide" or the opening quote of "hi", as its own. A block ends at a blank
+# line, a fenced code block or the end of the file, and its lines are joined
+# without a line break after the last, so a quote that ends its last line does
+# not close a value whose URL starts on an earlier line. A value is read only
+# to the first quote of its own kind, and the quote that opens the next value
+# of that kind is one, so only the last value of each kind can be read to the
+# end of its block of lines.
 URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?:(?!\1)[^\n])*(?=\1)"""
-                 rf"""|(?:(?!\1).)*(?=\1(?:\s|/?>))))\1|https?://[^\s<]+""",
+                 rf"""|((?:(?!\1).)*(?=\1(?:\s|/?>)))))\1|https?://[^\s<]+""",
                  re.DOTALL)
+# A start tag: `<`, an ASCII letter and the rest of the tag name, whitespace
+# or `/`, then the part that can hold an attribute, group 1, up to the next `<`
+# or `>`. A tag name here holds no `<`, so a run of `<` is read in linear time,
+# and an attribute value before this one that holds a `<` or `>` ends the part.
+START_TAG = re.compile(r"<[A-Za-z][^\s/<>]*[\s/]([^<>]*)")
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
 # within it.
@@ -188,16 +198,28 @@ def request_url(url: str) -> str:
 
 def prose_urls(block: list) -> list:
     """Return (line number, target) for every URL in a block of prose, given
-    as (line number, prose) pairs. A quoted attribute value may continue onto
-    the following lines of the block."""
+    as (line number, prose) pairs. A quoted attribute value in a start tag may
+    continue onto the following lines of the block."""
     text = "\n".join(prose for _, prose in block)
     starts = [0]
     for _, prose in block[:-1]:
         starts.append(starts[-1] + len(prose) + 1)
+    tags = None
     found = []
-    for m in URL.finditer(text):
+    m = URL.search(text)
+    while m:
+        if m.group(3) is not None:
+            if tags is None:
+                tags = [t.span(1) for t in START_TAG.finditer(text)]
+            # The last attribute part that starts at or before the `=`.
+            i = bisect.bisect_right(tags, (m.start(), len(text))) - 1
+            if i < 0 or tags[i][1] <= m.start():
+                # Outside a start tag the URL is read as a bare URL, from the
+                # scheme on: only whitespace and its references precede it.
+                m = URL.search(text, m.start(2))
         n = block[bisect.bisect_right(starts, m.start()) - 1][0]
         found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
+        m = URL.search(text, m.end())
     return found
 
 

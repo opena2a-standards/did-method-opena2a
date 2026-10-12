@@ -173,6 +173,26 @@ class HtmlAttributes(unittest.TestCase):
                          ["https://example.org/a"])
         self.assertEqual(targets('x="https://example.org/a\nend"\n'), ["https://example.org/a"])
 
+    def test_value_outside_a_start_tag_is_not_read_across_lines(self):
+        # Each later quote is followed by whitespace or `>`, as in a tag.
+        for text in ("x='https://example.org/a\nthe users' guide\n",
+                     'x="https://example.org/a\na 12" ruler\n',
+                     'x="https://example.org/a\nthe ">" sign\n',
+                     '<b>x="https://example.org/a\nthe ">" sign</b>\n',
+                     '<a="https://example.org/a\nb">t</a>\n',
+                     '<1 x="https://example.org/a\nb">t</a>\n',
+                     '<a title=">" href="https://example.org/a\nb">t</a>\n'):
+            self.assertEqual(check_links.link_targets(text), [(1, "https://example.org/a")],
+                             text)
+
+    def test_value_in_a_start_tag_that_opens_on_an_earlier_line_is_read_across_lines(self):
+        self.assertEqual(check_links.link_targets('<a\n  href="https://example.org/a\nb">t</a>\n'),
+                         [(2, "https://example.org/ab")])
+        self.assertEqual(targets('<a title="t" href="https://example.org/a\nb">t</a>\n'),
+                         ["https://example.org/ab"])
+        self.assertEqual(targets('<img/src="https://example.org/a\nb">\n'),
+                         ["https://example.org/ab"])
+
     def test_value_does_not_continue_past_a_blank_line(self):
         self.assertEqual(targets('<a href="https://example.org/a\n\nb">t</a>\n'),
                          ["https://example.org/a"])
@@ -338,6 +358,16 @@ class LongLines(unittest.TestCase):
     def test_run_of_lines_each_holding_an_unclosed_attribute_value(self):
         self.assert_linear("", 'x="https://a\n', ' <a href="https://example.org/x">',
                            "https://example.org/x")
+
+    def test_run_of_lines_each_holding_a_value_read_across_lines_in_prose(self):
+        self.assert_linear("", 'x="https://a\n" ', ' <a href="https://example.org/x">',
+                           "https://example.org/x")
+
+    def test_run_of_lines_each_holding_a_value_read_across_lines_in_a_tag(self):
+        self.assert_linear("<a ", 'x="https://a\n" ', ">", "https://a")
+
+    def test_run_of_unclosed_tags_before_a_value_read_across_lines(self):
+        self.assert_linear("", "<a", ' x="https://a\nb">', "https://ab")
 
     def test_run_of_letters_after_an_ampersand_in_an_attribute_value(self):
         self.assert_linear('<a href="https://example.org/&', "a", '">t</a>',

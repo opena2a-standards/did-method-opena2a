@@ -70,15 +70,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   scheme, gave the target `https://example.org/x">text`; the whitespace is now
   dropped, as the module docstring said. A value that continues onto the next
   line was cut at the line break; it now runs to its closing quote, up to a
-  blank line, with the line break removed, when that quote is followed by
-  whitespace, `/>` or `>`, as in a tag; otherwise its URL is read as a bare
-  URL, as before, so an unclosed `x="https://example.org/a` does not take the
-  opening quote of `"hi"` on the next line as its own. The line break at the
-  end of the last line before a blank line, a fenced code block or the end of
-  the file does not count as that whitespace, so a quote that ends that line
-  does not close a value whose URL starts on an earlier line. The character
-  references in an inline link or reference definition target are decoded as
-  CommonMark decodes them, so `[a](https://example.org/?a=1&amp;b=2)` gives
+  blank line, with the line break removed, when the value is in a start tag,
+  after a `<`, a tag name and whitespace or `/` with no `<` or `>` between
+  them and the value, and that quote is followed by whitespace, `/>` or `>`;
+  otherwise its URL is read as a bare URL, as before, so an unclosed
+  `x="https://example.org/a` in prose does not take the opening quote of
+  `"hi"`, or the quote in `a 12" ruler`, on the next line as its own. The line
+  break at the end of the last line before a blank line, a fenced code block
+  or the end of the file does not count as that whitespace, so a quote that
+  ends that line does not close a value whose URL starts on an earlier line.
+  The character references in an inline link or reference definition target
+  are decoded as CommonMark decodes them, so
+  `[a](https://example.org/?a=1&amp;b=2)` gives
   `https://example.org/?a=1&b=2`. A URL that is percent-encoded for the request
   keeps an empty query or fragment, so `https://example.org/a b?` is requested
   as `https://example.org/a%20b?`. A decimal character reference of more than
