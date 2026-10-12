@@ -71,6 +71,12 @@ the day the pull request for this revision opens; the earliest merge date is
   records that `400` is correct for a `resource-type` outside the ABNF
   (`agent9`, which contains a digit). The resolver change in `opena2a-registry`
   is open.
+- **Section 4.4 implementation note.** Records that the reference resolver does
+  not yet report deactivation: a `suspended` or `deprecated` resource resolves
+  as an active one, with the bare DID Document, no `didDocumentMetadata` and
+  all three services, and the trust proof for the deprecated record carries the
+  verdict `listed`. Of the first 100 `a2a_agent` records, 1 is `suspended` and
+  9 are `deprecated`. The resolver change in `opena2a-registry` is open.
 - **README.** The closing paragraph of the use cases is headed "What you can
   check yourself" and counts only the AIP fixtures that carry a `did:opena2a`
   identifier (4 of 7).
