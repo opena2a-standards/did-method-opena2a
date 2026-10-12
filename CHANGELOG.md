@@ -35,6 +35,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   exit 1, instead of ending the run with a traceback.
 - **`scripts/check_links.py` checks bare URLs.** A bare `https://` URL in prose,
   which GitHub renders as a link, is now followed like the other link forms.
+- **`scripts/check_links.py` reads a long line in linear time.** A long run of
+  `[`, `[a](`, `](` or `<https://` with no closing bracket made a link pattern
+  retry from every position: a line of 40,000 `[` took 0.52 s and a line of
+  40,000 `[a](` took 49 s, fourfold per doubling. Link text no longer holds a
+  `[`, an autolink no longer holds a `<`, and an inline link target holds
+  parentheses only in balanced pairs, one level deep, as in CommonMark. The
+  targets read from the README and the spec are unchanged.
+- **`scripts/check_links.py` ends a bare URL at whitespace or `<` only**, as
+  GitHub and its docstring do; a `>` no longer ends it.
+- **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
+  answer whose body is not a JSON object, such as an HTML error page, is
+  reported as a problem for that DID, with exit 1, instead of ending the run
+  with a traceback.
+- **`scripts/check_did_syntax.py --help` prints usage.** The script ran the
+  check whatever arguments it was given; `--help` now prints the usage, and an
+  unknown argument exits 2 without running the check.
 - **CHANGELOG 0.3.0.** The percent-encoding and `scripts/check_did_syntax.py`
   entries moved from [Unreleased] to 0.3.0, the revision whose header and
   Section 3.1 carry the ABNF change, and the spec's status section names the

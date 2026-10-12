@@ -5,7 +5,8 @@ Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
 and inline code spans. A bare URL ends at whitespace or `<`, and trailing
-punctuation and an unbalanced `)` are not part of it, as on GitHub. HTML
+punctuation and an unbalanced `)` are not part of it, as on GitHub. An inline
+link target may hold parentheses in balanced pairs, one level deep. HTML
 comments are not excluded. A relative target must name a file in this
 repository, and its `#fragment`, when present on a Markdown file, must match a
 heading there. An absolute http(s) target is requested anonymously and must
@@ -27,27 +28,36 @@ ROOT = Path(__file__).resolve().parent.parent
 DOCS = ["README.md", "did-method-opena2a.md"]
 USER_AGENT = "did-method-opena2a-link-check"
 
-INLINE = re.compile(r"\]\(([^)\s]+)\)")
+# An inline link destination has no whitespace and holds parentheses only in
+# balanced pairs, one level deep (CommonMark). It cannot cross the "(" that
+# opens the next inline link, link text cannot hold a "[", and an autolink
+# cannot hold a "<", so a match that fails stops at the next link and a long
+# line is read in linear time.
+DEST = r"(?:[^()\s]|\([^()\s]*\))+"
+INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
-AUTOLINK = re.compile(r"<(https?://[^>\s]+)>")
+AUTOLINK = re.compile(r"<(https?://[^<>\s]+)>")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
-INLINE_SPAN = re.compile(r"\[[^\]]*\]\([^)\s]+\)")
-BARE = re.compile(r"https?://[^\s<>]+")
+INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
+BARE = re.compile(r"https?://[^\s<]+")
 BARE_TRAILING = ".,:;!?\"'*_~"
 
 
 def bare_url(text: str) -> str:
     """Drop the trailing characters GitHub leaves out of a bare URL link."""
-    while text:
-        if text[-1] in BARE_TRAILING:
-            text = text[:-1]
-        elif text[-1] == ")" and text.count(")") > text.count("("):
-            text = text[:-1]
+    end = len(text)
+    unbalanced = text.count(")") - text.count("(")
+    while end:
+        if text[end - 1] in BARE_TRAILING:
+            end -= 1
+        elif text[end - 1] == ")" and unbalanced > 0:
+            end -= 1
+            unbalanced -= 1
         else:
             break
-    return text
+    return text[:end]
 
 
 def link_targets(text: str) -> list:

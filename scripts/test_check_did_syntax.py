@@ -52,7 +52,7 @@ class ScratchRepository(unittest.TestCase):
     def run_main(self) -> tuple:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            status = check_did_syntax.main()
+            status = check_did_syntax.main([])
         return status, out.getvalue(), err.getvalue()
 
     def test_specification_alone_passes(self):
@@ -83,6 +83,27 @@ class ScratchRepository(unittest.TestCase):
         self.write(".github/notes.md", "did:opena2a:Agent:example\n")
         status, _, err = self.run_main()
         self.assertEqual((status, err), (0, ""))
+
+
+class CommandLine(unittest.TestCase):
+    def run_main(self, argv: list) -> tuple:
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+                self.assertRaises(SystemExit) as exit_:
+            check_did_syntax.main(argv)
+        return exit_.exception.code, out.getvalue(), err.getvalue()
+
+    def test_help_prints_usage_instead_of_running_the_check(self):
+        code, out, err = self.run_main(["--help"])
+        self.assertEqual((code, err), (0, ""))
+        self.assertTrue(out.startswith("usage: "))
+        self.assertIn("- the vectors below parse, or fail to parse, as listed;", out)
+        self.assertNotIn("distinct did:opena2a strings", out)
+
+    def test_unknown_argument_is_refused_without_running_the_check(self):
+        code, out, err = self.run_main(["--bogus"])
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("unrecognized arguments: --bogus", err)
 
 
 if __name__ == "__main__":
