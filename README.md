@@ -111,6 +111,8 @@ Each suite ships reference verifiers in Go (full hybrid Ed25519 + ML-DSA-65) and
 
 Editorial corrections, clarifications, and link fixes are welcome via pull request. Substantive changes (changes to the ABNF, the operation surface, the DID Document shape, or the security model) require a version bump, editor review, and a 7-day quiet period per Section 9 of the spec.
 
+`python3 scripts/check_did_syntax.py` checks every `did:opena2a` string in this repository against the Section 3.1 grammar and the Section 3.1.2 decoding step; run it after changing either, or after adding an example DID.
+
 This specification is licensed under [Apache-2.0](./LICENSE). By contributing, you agree your contributions are likewise licensed under Apache-2.0. The W3C registry entry that cites this specification is governed separately by the [W3C Patent Policy][w3c-pp] and [Document License][w3c-dl].
 
 ## References

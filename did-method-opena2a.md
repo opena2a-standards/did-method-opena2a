@@ -90,16 +90,18 @@ OpenA2A specification family; ATX, ATP and AAP cite them rather than restate the
 ```
 opena2a-did       = "did:opena2a:" resource-type ":" resource-id [ "#" fragment ]
 resource-type     = ALPHA-LOWER *( ALPHA-LOWER / "_" )
-resource-id       = 1*( unreserved / ":" )
+resource-id       = 1*( unreserved / ":" / pct-encoded )
 fragment          = 1*( unreserved )
 
 ALPHA-LOWER       = %x61-7A          ; a-z
 unreserved        = ALPHA / DIGIT / "." / "_" / "-" / "/" / "@"
+pct-encoded       = "%" HEXDIG HEXDIG
 ALPHA             = %x41-5A / %x61-7A
 DIGIT             = %x30-39
+HEXDIG            = DIGIT / %x41-46 / %x61-66   ; 0-9, A-F, a-f
 ```
 
-A `resource-type` is a non-empty, lowercase ASCII alphabetic prefix that may contain underscores. A `resource-id` is one or more characters drawn from the `unreserved` set, with the colon (`:`) permitted to allow path-style identifiers used by some upstream package ecosystems. The fragment component is optional and is used to identify a specific verification method or service endpoint within the DID Document (for example, `#key-1` or `#trust-lookup`).
+A `resource-type` is a non-empty, lowercase ASCII alphabetic prefix that may contain underscores. A `resource-id` is one or more characters drawn from the `unreserved` set, with the colon (`:`) permitted to allow path-style identifiers used by some upstream package ecosystems, and percent-encoded octets (`pct-encoded`) permitted so that the strict DID Core serialization of Section 3.1.1 is also a conforming DID. A `resource-id` that carries `pct-encoded` triplets is decoded by the step in Section 3.1.2 before it is looked up or compared. The fragment component is optional and is used to identify a specific verification method or service endpoint within the DID Document (for example, `#key-1` or `#trust-lookup`).
 
 The `resource-type` is intentionally an open ABNF rule. New resource types are expected to be added to a registry over time without requiring revisions to this specification.
 
@@ -107,9 +109,22 @@ The `resource-type` is intentionally an open ABNF rule. New resource types are e
 
 DID Core restricts the generic `method-specific-id` to the `idchar` set `ALPHA / DIGIT / "." / "-" / "_" / pct-encoded`: the forward slash (`/`) and commercial at (`@`) are not permitted unescaped and would ordinarily be percent-encoded as `%2F` and `%40`. The `did:opena2a` `unreserved` rule in Section 3.1 **intentionally extends** that set to admit `/` and `@` unescaped, so that a DID mirrors the upstream identifier it names (scoped npm package names such as `@modelcontextprotocol/server-filesystem`, and path-style agent and skill ids) without a lossy encoding step. This keeps a `did:opena2a` string human-readable and byte-identical to the identifier a developer already knows.
 
-Signed artifacts (ATX credentials, ATP trust proofs, AAP tokens) MUST carry exactly one form of a `did:opena2a` identifier: the unescaped form above. Verifiers MUST compare identifiers after the normalization of Section 3.3 and MUST NOT normalize an identifier before verifying a signature over bytes that contain it.
+Signed artifacts (ATX credentials, ATP trust proofs, AAP tokens) MUST carry exactly one form of a `did:opena2a` identifier: the unescaped form above. Verifiers MUST compare identifiers after the decoding of Section 3.1.2 and the normalization of Section 3.3 and MUST NOT decode or normalize an identifier before verifying a signature over bytes that contain it.
 
-This is a deliberate, documented deviation from strict DID Core syntax, recorded here rather than left implicit. The percent-encoded serialization `did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem` is the strict-DID-Core-conformant equivalent of the same identifier and denotes the same DID subject; the DID Document `service` endpoint URLs in Section 5 carry the percent-encoded form where a URL context requires it. Consumers that require generic-DID-grammar conformance MAY percent-encode the `resource-id` before parsing; consumers operating within the OpenA2A ecosystem SHOULD accept the unescaped form. Note that the `unreserved` rule name in Section 3.1 is local to this specification and is broader than the identically named RFC 3986 production, which does not include `/` or `@`.
+This is a deliberate, documented deviation from strict DID Core syntax, recorded here rather than left implicit. The percent-encoded serialization `did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem` is the strict-DID-Core-conformant equivalent of the same identifier: it conforms to the ABNF in Section 3.1, and the decoding step of Section 3.1.2 maps it to the unescaped form, so it denotes the same DID subject and resolves to the same DID Document. The DID Document `service` endpoint URLs in Section 5 carry the percent-encoded form where a URL context requires it. Consumers that require generic-DID-grammar conformance MAY percent-encode the `resource-id` before parsing; consumers operating within the OpenA2A ecosystem SHOULD accept the unescaped form. Note that the `unreserved` rule name in Section 3.1 is local to this specification and is broader than the identically named RFC 3986 production, which does not include `/` or `@`.
+
+### 3.1.2 Percent-encoded resource identifiers
+
+The unescaped form is the canonical form of a `did:opena2a` DID: a registry assigns DIDs in it (Section 4.1) and signed artifacts carry it (Section 3.1.1). A DID whose `resource-id` carries `pct-encoded` triplets has one canonical form, obtained by decoding the `resource-id` exactly once:
+
+1. Each `pct-encoded` triplet in the `resource-id` is replaced by the octet its two hexadecimal digits denote. The digits are case-insensitive: `%2f` and `%2F` denote the same octet. The prefix, the `resource-type` and the fragment are not decoded; the grammar admits no `pct-encoded` triplet in them.
+2. The decoded `resource-id` MUST consist only of characters that the `resource-id` production admits unescaped (`unreserved` and `:`). A triplet that decodes to any other octet (for example `%25`, `%23`, `%20`, or an octet above `%7F`) makes the DID invalid. The result is not decoded a second time.
+
+Two `did:opena2a` DIDs denote the same DID subject exactly when their canonical forms are equal after the normalization of Section 3.3. A resolver MUST decode before lookup, so the percent-encoded and unescaped forms of one DID resolve to the same DID Document, whose `id` is the canonical form; a resolver that returns a full resolution result (Section 4.2) MAY report the canonical form in `didDocumentMetadata.canonicalId` (DID Core Section 7.1.3). Collision detection (Section 4.1) and identifier comparison (Section 3.1.1) apply to canonical forms.
+
+This decoding applies to the DID string. It is separate from, and follows, any URL decoding that a transport applies to a request carrying the DID (Section 8.4).
+
+`scripts/check_did_syntax.py` compiles the ABNF of Section 3.1 from this document, checks every `did:opena2a` string in this repository against it, and checks this decoding step against a set of encoded and invalid vectors.
 
 ### 3.2 Resource type registry
 
@@ -147,7 +162,7 @@ identifiers with it.
 
 ### 3.3 Identifier normalization
 
-Implementations MUST treat the literal prefix `did:opena2a:` and the `resource-type` slot as case-sensitive lowercase. The `resource-id` slot is case-preserving and MUST NOT be lowercased by the resolver, since some resource identifiers (notably scoped npm package names such as `@modelcontextprotocol/server-filesystem`) are case-significant in their upstream ecosystems.
+Implementations MUST treat the literal prefix `did:opena2a:` and the `resource-type` slot as case-sensitive lowercase. The `resource-id` slot is case-preserving and MUST NOT be lowercased by the resolver, since some resource identifiers (notably scoped npm package names such as `@modelcontextprotocol/server-filesystem`) are case-significant in their upstream ecosystems. The hexadecimal digits of a `pct-encoded` triplet are the exception: they are case-insensitive, and the triplet is decoded (Section 3.1.2) before the `resource-id` is compared, so case preservation applies to the decoded characters.
 
 ### 3.4 Registry self-identifier
 
@@ -169,11 +184,11 @@ A registry exposes all four DID method operations (Create, Read, Update, Deactiv
 
 ### 4.1 Create
 
-A `did:opena2a` DID is created as a side effect of registering a resource with a registry. The registry assigns the DID at registration time using the form `did:opena2a:<resource-type>:<resource-id>` and writes the DID into the registry record.
+A `did:opena2a` DID is created as a side effect of registering a resource with a registry. The registry assigns the DID at registration time using the form `did:opena2a:<resource-type>:<resource-id>`, in the canonical unescaped form (Section 3.1.2), and writes the DID into the registry record.
 
 A subject that will prove possession of its identity registers at least one public key with the registry at creation time. The registry publishes those keys under `authentication` in the subject's DID Document (Section 5.1). A resource that has no key of its own (for example, a catalogued package that is not an active signer) is issued a DID Document with no `authentication` entry.
 
-The registry SHOULD reject a registration whose resulting DID would collide with an existing registered DID. Collision detection is performed by case-sensitive comparison on the `resource-type` and `resource-id` slots after normalization per Section 3.3.
+The registry SHOULD reject a registration whose resulting DID would collide with an existing registered DID. Collision detection is performed by case-sensitive comparison on the `resource-type` and `resource-id` slots after decoding per Section 3.1.2 and normalization per Section 3.3.
 
 Resources are typically registered by an authenticated publisher submitting metadata through the registry's package or agent registration endpoints, or by the registry's autonomous curation pipeline ingesting from upstream registries (npm, PyPI, Hugging Face, GitHub) and assigning a `did:opena2a:` identifier at admission time.
 
@@ -192,7 +207,9 @@ Cache-Control:   public, max-age=300
 
 Implementation status (2026-09-08, request re-measured 2026-10-08): the reference deployment replies `Content-Type: application/did+ld+json` to a `GET` (`curl -sS -o /dev/null -D - https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org`). It answers `HEAD` with `405 Method Not Allowed`, so a header-only request such as `curl -sI` does not show the media type. Its handler test pins the value in the registry source, which is private. Revision 0.1 stated the same value; this revision keeps it.
 
-If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
+The registry decodes the `resource-id` (Section 3.1.2) before lookup. If the resource named by the DID is not registered, the registry MUST reply `404 Not Found` with a JSON body identifying the missing resource. If the DID does not conform to the syntax in Section 3.1, or its `resource-id` does not decode under Section 3.1.2, the registry MUST reply `400 Bad Request` with a JSON body identifying the syntactic defect.
+
+Implementation status (2026-10-11): the reference deployment does not decode a percent-encoded `resource-id`. `curl -s -o /dev/null -w '%{http_code}\n' "https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem"` prints `404`; the same request with the unescaped form prints `200`.
 
 The `id` of a returned DID Document MUST equal the requested DID, compared as exact strings (Section 3.3; DID Core Section 7.1 states the same requirement). A registry MUST NOT answer a DID it has not registered with another document, its own registry DID Document (Section 5.3) included. A `did:opena2a:registry:<authority>` DID other than the registry's self-identifier (Section 3.4) is not registered unless the registry holds a record for that registry, and the `404` rule above applies to it.
 

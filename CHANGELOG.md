@@ -6,6 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Change process: the percent-encoding entry below changes the ABNF, so Section 9
+applies: the revision that carries it takes a version bump, and the 7-day quiet
+period starts the day its pull request opens.
+
+### Changed
+
+- **Percent-encoded `resource-id` (Sections 3.1 and 3.1.2).** The `resource-id`
+  production admits `pct-encoded` triplets, so the strict DID Core
+  serialization that Section 3.1.1 calls equivalent
+  (`did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem`) now
+  parses; it was the only DID string in the README, specification, CHANGELOG
+  and examples that did not. New Section 3.1.2 defines the decoding step: the
+  `resource-id` is decoded exactly once, a triplet that decodes to a character
+  outside `unreserved` and `:` makes the DID invalid, a resolver decodes before
+  lookup, and identifiers are compared and collisions checked in the decoded
+  canonical form. Sections 3.1.1, 3.3, 4.1 and 4.2 refer to the step.
+  Implementation status: the reference resolver returns `404` for the encoded
+  form as of 2026-10-11 (Section 4.2); the resolver change is open.
+
+### Added
+
+- `scripts/check_did_syntax.py` compiles the Section 3.1 ABNF from the
+  specification, checks every `did:opena2a` string in the README,
+  specification, CHANGELOG and examples against it, and checks the Section
+  3.1.2 decoding step against encoded and invalid vectors. python3 standard
+  library only.
+
 ## [0.3.0] - 2026-10-11
 
 Change process: this revision changes the security model (Sections 4.2, 6.1
