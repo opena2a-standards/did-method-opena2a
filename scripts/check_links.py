@@ -4,29 +4,36 @@
 Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
-and inline code spans. A bare URL ends at whitespace or `<`, and trailing
-punctuation and an unbalanced `)` are not part of it, as on GitHub. A URL that
-opens a quoted HTML attribute value, as in `<a href="...">`, runs to the quote
-that closes the value, whitespace and `<` included. Its character references
-such as `&amp;` are decoded with html.unescape, except that a named reference
-without its `;` is kept as written when `=` or an ASCII letter or digit
-follows it, as a browser keeps `&sect` in `&section=2`. Leading and trailing
-whitespace is dropped and tabs and newlines are removed, as a browser does. An
-inline link target may hold parentheses in balanced pairs, one level deep. HTML
-comments are not excluded. A relative target must name a file in this
-repository, and its `#fragment`, when present on a Markdown file, must match a
-heading there. An absolute http(s) target is requested anonymously, with a
-space, control or non-ASCII character after the host percent-encoded as a
-browser does, and must answer with a success status after redirects: a
+and inline code spans. The character references in an inline link or
+reference definition target, such as `&amp;`, are decoded as CommonMark
+decodes them: a named one only with its `;`. A bare URL ends at whitespace or
+`<`, and trailing punctuation and an unbalanced `)` are not part of it, as on
+GitHub. A URL in a quoted HTML attribute value, as in `<a href="...">`, runs
+to the quote that closes the value, whitespace, `<` and line breaks included,
+up to a blank line, and may follow whitespace written as such or as a
+character reference. Its character references are decoded with html.unescape,
+except that a named reference without its `;` is kept as written when `=` or
+an ASCII letter or digit follows it, as a browser keeps `&sect` in
+`&section=2`. Leading and trailing C0 controls and spaces are dropped and tabs
+and newlines are removed, as a browser does. An inline link target may hold
+parentheses in balanced pairs, one level deep. HTML comments are not excluded.
+A relative target must name a file in this repository, and its `#fragment`,
+when present on a Markdown file, must match a heading there. An absolute
+http(s) target is requested anonymously, with each space, control or non-ASCII
+character after the host percent-encoded as a browser does and the rest sent
+as written, and must answer with a success status after redirects: a
 repository that is private answers 404 to an anonymous reader, which is the
-failure this check exists to catch. `--offline` skips the network requests.
-python3 standard library only.
+failure this check exists to catch. A target with a host or port that cannot
+be requested, such as a host holding a space, is reported as broken.
+`--offline` skips the network requests. python3 standard library only.
 """
 from __future__ import annotations
 
 import argparse
+import bisect
 import html
 import html.entities
+import http.client
 import re
 import sys
 import time
@@ -56,13 +63,24 @@ CODE_SPAN = re.compile(r"`+[^`]*`+")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
-# A URL outside the link forms above. One that opens a quoted HTML attribute
-# value (href="...", src='...') runs to the quote that closes the value, so
-# the rest of the tag is not read into it; any other is a bare URL. A value
-# stops at the first quote of its own kind, and every value that opens holds a
-# quote of that kind, so only the last value of each kind can fail to close
-# and be read to the end of the line.
-URL = re.compile(r"""=\s*(["'])(https?://(?:(?!\1).)*)\1|https?://[^\s<]+""")
+# A character reference in an inline link or reference definition target, as
+# CommonMark reads one: a name or a decimal or hexadecimal code, closed by `;`.
+DESTINATION_REFERENCE = re.compile(
+    r"&(?:#([0-9]{1,7})|#[xX]([0-9A-Fa-f]{1,6})|([0-9A-Za-z]+));")
+# What the URL parser strips from the start of an attribute value, written as
+# such or as a character reference: a C0 control or a space. `&#0;` is read as
+# U+FFFD, and `&Tab;` and `&NewLine;` are the only names in the HTML table for
+# one of these characters.
+LEADING = (r"(?:[\x00-\x20]|&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
+           r"|&#[xX]0*(?:20|1[0-9A-Fa-f]|[1-9A-Fa-f]);?|&(?:Tab|NewLine);)")
+# A URL outside the link forms above. One in a quoted HTML attribute value
+# (href="...", src='...') runs to the quote that closes the value, so the rest
+# of the tag is not read into it; any other is a bare URL. A value stops at the
+# first quote of its own kind, and every value that opens holds a quote of that
+# kind, so only the last value of each kind can fail to close and be read to
+# the end of its block of lines.
+URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?!\1).)*)\1|https?://[^\s<]+""",
+                 re.DOTALL)
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
 # within it.
@@ -72,6 +90,12 @@ TAB_OR_NEWLINE = re.compile("[\t\n\r]")
 # longest name in the HTML table of named references bounds the search.
 NAMED_REFERENCE = re.compile(r"&([0-9A-Za-z]+)")
 LONGEST_NAME = max(map(len, html.entities.html5))
+# A decimal character reference. html.unescape cannot convert more than 4,300
+# digits, and any code of more than 7 digits after its leading zeros is above
+# U+10FFFF, which html.unescape and a browser both read as U+FFFD.
+DECIMAL_REFERENCE = re.compile(r"&#([0-9]+)")
+# The scheme and host of an http(s) URL, up to the first `/`, `?` or `#`.
+ORIGIN = re.compile(r"https?://[^/?#]*")
 # Characters http.client will not send, and a browser percent-encodes after
 # the host: whitespace, controls and anything outside ASCII.
 UNSENDABLE = re.compile(r"[^\x21-\x7e]+")
@@ -92,13 +116,33 @@ def bare_url(text: str) -> str:
     return text[:end]
 
 
+def unescape_destination(target: str) -> str:
+    """Decode the character references in an inline link or reference
+    definition target as CommonMark does: a named one only with its `;` and a
+    name in the HTML table, a numeric one to its character, or to U+FFFD for
+    zero, a surrogate or a code above U+10FFFF."""
+    def decoded(m: re.Match) -> str:
+        if m.group(3) is not None:
+            return html.entities.html5.get(m.group(3) + ";", m.group())
+        code = int(m.group(1)) if m.group(1) else int(m.group(2), 16)
+        if code == 0 or 0xD800 <= code <= 0xDFFF or code > 0x10FFFF:
+            return "�"
+        return chr(code)
+
+    return DESTINATION_REFERENCE.sub(decoded, target)
+
+
 def unescape_attribute(value: str) -> str:
     """Decode the character references in an attribute value with
     html.unescape, but keep a named reference that has no `;`, such as
     `&sect`, as written when `=` or an ASCII letter or digit follows it, as
     the HTML tokenizer keeps it in an attribute value."""
+    def bounded(m: re.Match) -> str:
+        # Eight digits are enough to read any longer code as U+FFFD.
+        return "&#" + (m.group(1).lstrip("0") or "0")[:8]
+
     def written(m: re.Match) -> str:
-        name, after = m.group(1), value[m.end():m.end() + 1]
+        name, after = m.group(1), m.string[m.end():m.end() + 1]
         if after == ";" and name + ";" in html.entities.html5:
             return m.group()
         # The tokenizer reads the longest name in the table.
@@ -110,7 +154,7 @@ def unescape_attribute(value: str) -> str:
                 break
         return m.group()
 
-    return html.unescape(NAMED_REFERENCE.sub(written, value))
+    return html.unescape(NAMED_REFERENCE.sub(written, DECIMAL_REFERENCE.sub(bounded, value)))
 
 
 def attribute_url(value: str) -> str:
@@ -120,39 +164,57 @@ def attribute_url(value: str) -> str:
 
 
 def request_url(url: str) -> str:
-    """The URL as a browser requests it, with what follows the host
-    percent-encoded where http.client would refuse to send it."""
-    if not UNSENDABLE.search(url):
-        return url
-    parts = urllib.parse.urlsplit(url)
+    """The URL as written, with each space, control and non-ASCII character
+    after the host percent-encoded, as a browser encodes it, so that
+    http.client sends it. Other characters a browser also encodes, such as
+    `"`, `<`, `>` and a backquote, are sent as written."""
+    origin = ORIGIN.match(url)
+    start = origin.end() if origin else 0
+    return url[:start] + UNSENDABLE.sub(lambda m: urllib.parse.quote(m.group()), url[start:])
 
-    def encode(s: str) -> str:
-        return UNSENDABLE.sub(lambda m: urllib.parse.quote(m.group()), s)
 
-    return urllib.parse.urlunsplit(parts._replace(
-        path=encode(parts.path), query=encode(parts.query), fragment=encode(parts.fragment)))
+def prose_urls(block: list) -> list:
+    """Return (line number, target) for every URL in a block of prose, given
+    as (line number, prose) pairs. A quoted attribute value may continue onto
+    the following lines of the block."""
+    text = "\n".join(prose for _, prose in block)
+    starts = [0]
+    for _, prose in block[:-1]:
+        starts.append(starts[-1] + len(prose) + 1)
+    found = []
+    for m in URL.finditer(text):
+        n = block[bisect.bisect_right(starts, m.start()) - 1][0]
+        found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
+    return found
 
 
 def link_targets(text: str) -> list:
     """Return (line number, target) for every followable link in the text."""
     found = []
+    block = []
     in_fence = False
     for n, line in enumerate(text.splitlines(), 1):
-        if line.lstrip().startswith(("```", "~~~")):
-            in_fence = not in_fence
-            continue
-        if in_fence:
+        fence = line.lstrip().startswith(("```", "~~~"))
+        if fence or in_fence or not line.strip(" \t"):
+            # A fence, a line inside one or a blank line ends a block of prose.
+            found += prose_urls(block)
+            block = []
+            if fence:
+                in_fence = not in_fence
             continue
         line = CODE_SPAN.sub("", line)
-        for pattern in (INLINE, REFDEF, AUTOLINK):
+        for pattern in (INLINE, REFDEF):
             for m in pattern.finditer(line):
-                found.append((n, m.group(1)))
+                found.append((n, unescape_destination(m.group(1))))
+        for m in AUTOLINK.finditer(line):
+            found.append((n, m.group(1)))
         prose = line
         for pattern in (INLINE_SPAN, REFDEF, AUTOLINK):
             prose = pattern.sub(" ", prose)
-        for m in URL.finditer(prose):
-            found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
-    return found
+        block.append((n, prose))
+    found += prose_urls(block)
+    # A stable sort keeps the link forms of a line before its URLs in prose.
+    return sorted(found, key=lambda target: target[0])
 
 
 def heading_anchors(text: str) -> set:
@@ -196,6 +258,9 @@ def check_remote(url: str) -> str | None:
         except urllib.error.HTTPError as e:
             if e.code < 500 or attempt == 1:
                 return f"HTTP {e.code} for an anonymous request"
+        except http.client.InvalidURL as e:
+            # A host or port http.client cannot use, such as a host with a space.
+            return f"invalid URL: {e}"
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 1:
                 return f"request failed: {getattr(e, 'reason', e)}"

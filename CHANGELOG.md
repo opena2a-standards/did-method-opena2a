@@ -64,6 +64,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   browser does; a control or non-ASCII character in a bare URL ended the run
   with a traceback before. The README and the spec hold no such tag, so the
   targets read from them are unchanged.
+- **`scripts/check_links.py` reads more attribute and link targets as a reader
+  follows them.** An attribute value that opens with whitespace, as in
+  `<a href=" https://example.org/x">text</a>` or with `&#32;` before the
+  scheme, gave the target `https://example.org/x">text`; the whitespace is now
+  dropped, as the module docstring said. A value that continues onto the next
+  line was cut at the line break; it now runs to its closing quote, up to a
+  blank line, with the line break removed. The character references in an
+  inline link or reference definition target are decoded as CommonMark decodes
+  them, so `[a](https://example.org/?a=1&amp;b=2)` gives
+  `https://example.org/?a=1&b=2`. A URL that is percent-encoded for the request
+  keeps an empty query or fragment, so `https://example.org/a b?` is requested
+  as `https://example.org/a%20b?`. A decimal character reference of more than
+  4,300 digits in an attribute value, and a target with a space in its host,
+  ended the run with a traceback; the first is now read by its value, as a
+  browser reads it, which is U+FFFD above U+10FFFF, and the second is reported
+  as a broken link. The README
+  and the spec hold no such target, so the targets read from them are
+  unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run
