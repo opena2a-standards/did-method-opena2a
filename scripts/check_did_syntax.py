@@ -4,11 +4,14 @@
 The grammar is read from the fenced block under the
 `<!-- opena2a-definition: did-syntax -->` marker in the specification and
 compiled to a regular expression, so the check follows the ABNF as written
-rather than a copy of it. Three checks run:
+rather than a copy of it. Four checks run:
 
 - every `did:opena2a:` string in the README, the specification, the CHANGELOG
   and examples/ parses (templates such as `did:opena2a:<type>:<id>` and the
   bare prefix are skipped);
+- a percent-encoded `did:opena2a:` string is spelled out only in Section 3.1.1
+  of the specification, the one place the family spec-drift check
+  `did-example-forms` excludes; anywhere else it turns that check red;
 - the vectors below parse, or fail to parse, as listed;
 - the percent-encoded vectors decode to the listed canonical form, and the
   listed invalid encodings are rejected by the decoding step.
@@ -240,8 +243,35 @@ def documented_dids() -> dict:
     return found
 
 
+ENCODED_HOME = re.compile(r"^### 3\.1\.1 ")
+
+
+def encoded_home_lines(spec_text: str) -> range:
+    """Line numbers (1-based) of Section 3.1.1, up to the next heading of level 3 or above."""
+    lines = spec_text.split("\n")
+    start = next((i for i, line in enumerate(lines) if ENCODED_HOME.match(line)), None)
+    if start is None:
+        return range(0)
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"#{1,3} ", lines[i])), len(lines))
+    return range(start + 1, end + 1)
+
+
+def encoded_outside_home(docs: dict, home: range) -> list:
+    spec_rel = str(SPEC.relative_to(ROOT))
+    out = []
+    for did, where in sorted(docs.items()):
+        if "%" not in did:
+            continue
+        for loc in where:
+            path, _, line = loc.rpartition(":")
+            if path != spec_rel or int(line) not in home:
+                out.append(f"percent-encoded form outside Section 3.1.1: {did} ({loc})")
+    return out
+
+
 def main() -> int:
-    compiler = Compiler(parse_rules(read_grammar(SPEC.read_text(encoding="utf-8"))))
+    spec_text = SPEC.read_text(encoding="utf-8")
+    compiler = Compiler(parse_rules(read_grammar(spec_text)))
     did_rx = re.compile(compiler.rule("opena2a-did"))
     rid_rx = re.compile(compiler.rule("resource-id"))
     failures = []
@@ -249,6 +279,7 @@ def main() -> int:
     for did, where in sorted(docs.items()):
         if not did_rx.fullmatch(did):
             failures.append(f"does not parse: {did} ({', '.join(where)})")
+    failures.extend(encoded_outside_home(docs, encoded_home_lines(spec_text)))
     for did in MUST_PARSE:
         if not did_rx.fullmatch(did):
             failures.append(f"vector does not parse: {did}")

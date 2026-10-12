@@ -15,23 +15,32 @@ period starts the day its pull request opens.
 - **Percent-encoded `resource-id` (Sections 3.1 and 3.1.2).** The `resource-id`
   production admits `pct-encoded` triplets, so the strict DID Core
   serialization that Section 3.1.1 calls equivalent
-  (`did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem`) now
+  (`did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem` with the
+  `resource-id` encoded as `%40modelcontextprotocol%2Fserver-filesystem`) now
   parses; it was the only DID string in the README, specification, CHANGELOG
   and examples that did not. New Section 3.1.2 defines the decoding step: the
   `resource-id` is decoded exactly once, a triplet that decodes to a character
   outside `unreserved` and `:` makes the DID invalid, a resolver decodes before
   lookup, and identifiers are compared and collisions checked in the decoded
   canonical form. Sections 3.1.1, 3.3, 4.1 and 4.2 refer to the step.
-  Implementation status: the reference resolver returns `404` for the encoded
-  form as of 2026-10-11 (Section 4.2); the resolver change is open.
+  Sections 4.2, 6.1 and 6.5 compare the returned `id` with the canonical form
+  of the requested DID, so the canonical `id` that a percent-encoded request
+  resolves to passes the verifier check; a request in canonical form, the form
+  every signed artifact carries, compares byte for byte as before. The encoded
+  serialization is spelled out only in Section 3.1.1, which the family
+  spec-drift check `did-example-forms` excludes; Section 4.2 and this entry
+  refer to it. Implementation status: the reference resolver returns `404` for
+  the encoded form as of 2026-10-11 (Section 4.2); the resolver change is
+  open.
 
 ### Added
 
 - `scripts/check_did_syntax.py` compiles the Section 3.1 ABNF from the
   specification, checks every `did:opena2a` string in the README,
-  specification, CHANGELOG and examples against it, and checks the Section
-  3.1.2 decoding step against encoded and invalid vectors. python3 standard
-  library only.
+  specification, CHANGELOG and examples against it, checks that a
+  percent-encoded `did:opena2a` string is spelled out only in Section 3.1.1 of
+  the specification, and checks the Section 3.1.2 decoding step against
+  encoded and invalid vectors. python3 standard library only.
 
 ## [0.3.0] - 2026-10-11
 
