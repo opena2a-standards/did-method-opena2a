@@ -105,7 +105,13 @@ Three conformance suites carry `did:opena2a:` identifiers in byte-stable test fi
 - [`atp-conformance`][atp]: Agent Trust Protocol
 - [`aip-conformance`][aip]: Agent Identity Protocol
 
-Each suite ships reference verifiers in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 signatures are presence-checked, with full verification delegated to the Go verifier). Fixture bytes are pinned by each suite's `MANIFEST.sha256`, and both verifiers must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
+Each suite ships reference verifiers in Go and Python. Fixture bytes are pinned by each suite's `MANIFEST.sha256`, and both verifiers must reproduce every fixture's pinned expected verdict. Signature coverage differs by suite:
+
+- ATX: both verifiers verify Ed25519 and ML-DSA-65 hybrid signatures.
+- ATP: the Go verifier verifies Ed25519 and ML-DSA-65; the Python verifier verifies Ed25519 and records an ML-DSA-65 signature as present without verifying it, leaving full hybrid verification to the Go verifier.
+- AIP: both verifiers verify Ed25519 only, and no AIP fixture carries an ML-DSA-65 signature.
+
+The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
 
 ## Contributing
 

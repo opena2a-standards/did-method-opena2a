@@ -445,7 +445,13 @@ Three conformance suites carry `did:opena2a:` identifiers in byte-stable fixture
 - **Agent Trust Protocol (ATP):** <https://github.com/opena2a-standards/atp-conformance>
 - **Agent Identity Protocol (AIP):** <https://github.com/opena2a-standards/aip-conformance>
 
-Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, and others) in fixtures whose bytes are pinned by a `MANIFEST.sha256`. Reference verifiers exist in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 verification is delegated to the Go verifier), and both must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of 2026-09-08, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned.
+Each suite publishes test DIDs (`did:opena2a:agent:agent_conformance_test_001`, `did:opena2a:authority:opena2a.org`, and others) in fixtures whose bytes are pinned by a `MANIFEST.sha256`. Each suite has reference verifiers in Go and Python, and both must reproduce every fixture's pinned expected verdict. Their signature coverage differs by suite (measured 2026-10-11 against each suite's `main` branch):
+
+- **ATX:** both verifiers verify Ed25519 and ML-DSA-65 hybrid signatures; the Python verifier uses `dilithium-py` for ML-DSA-65.
+- **ATP:** the Go verifier verifies Ed25519 and ML-DSA-65. The Python verifier verifies Ed25519 and records an ML-DSA-65 signature as present without verifying it, so full hybrid verification is the Go verifier's.
+- **AIP:** both verifiers verify Ed25519 only. AIP challenge-response carries no hybrid signature, and no AIP fixture carries an ML-DSA-65 signature.
+
+The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers. The suites carry identifiers and keys, not DID Documents: no suite pins a resolved `did:opena2a` DID Document as a fixture as of 2026-09-08, and the [`examples/`](./examples/) directory of this repository is illustrative, not pinned.
 
 ### 8.3 Discovery
 

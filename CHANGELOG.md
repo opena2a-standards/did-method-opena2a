@@ -111,6 +111,13 @@ the day the pull request for this revision opens; the earliest merge date is
   entry in the script, not from the marker id. The help now says
   `registries/<file>.json` and lists each generated file beside its marker id
   (`registries/resource-types.json` for `did-resource-types`).
+- **README and spec Section 8.2 verifier coverage.** One sentence described
+  every suite's verifiers as Go with full hybrid Ed25519 + ML-DSA-65 and
+  Python with Ed25519 only, ML-DSA-65 delegated to Go; the 0.2.0 entry below
+  repeats it. That holds for ATP only. Both now state the coverage per suite:
+  ATX verifies ML-DSA-65 in both Go and Python, ATP verifies it in Go and
+  records it as present in Python, and AIP verifies Ed25519 only in both
+  because no AIP fixture carries an ML-DSA-65 signature.
 
 ## [0.2.0] - 2026-09-08
 
