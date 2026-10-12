@@ -82,6 +82,19 @@ class HtmlAttributes(unittest.TestCase):
         self.assertEqual(targets("<a href='https://example.org/it&#39;s'>t</a>\n"),
                          ["https://example.org/it's"])
 
+    def test_named_reference_without_a_semicolon_is_kept_before_equals_letter_or_digit(self):
+        # As a browser keeps it in an attribute value.
+        for url in ("https://example.org/?q=x&section=2", "https://example.org/?q=x&para1=2",
+                    "https://example.org/?q=x&copy=2", "https://example.org/?a=1&notify",
+                    "https://example.org/?id=1&REGION=eu", "https://example.org/?a=1&lt=5"):
+            self.assertEqual(targets(f'<a href="{url}">t</a>\n'), [url])
+
+    def test_named_reference_is_decoded_with_its_semicolon_or_before_another_character(self):
+        self.assertEqual(targets('<a href="https://example.org/a&copy/b">t</a>\n'),
+                         ["https://example.org/a©/b"])
+        self.assertEqual(targets('<a href="https://example.org/a&notin;b">t</a>\n'),
+                         ["https://example.org/a∉b"])
+
     def test_whitespace_is_dropped_from_the_value_as_a_browser_does(self):
         self.assertEqual(targets('<a href="https://example.org/x ">t</a>\n'),
                          ["https://example.org/x"])

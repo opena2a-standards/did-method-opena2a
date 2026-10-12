@@ -7,10 +7,12 @@ URLs in prose, which GitHub also renders as links, outside fenced code blocks
 and inline code spans. A bare URL ends at whitespace or `<`, and trailing
 punctuation and an unbalanced `)` are not part of it, as on GitHub. A URL that
 opens a quoted HTML attribute value, as in `<a href="...">`, runs to the quote
-that closes the value, whitespace and `<` included, and is read as a browser
-reads it: character references such as `&amp;` are decoded, leading and
-trailing whitespace is dropped and tabs and newlines are removed. An inline
-link target may hold parentheses in balanced pairs, one level deep. HTML
+that closes the value, whitespace and `<` included. Its character references
+such as `&amp;` are decoded with html.unescape, except that a named reference
+without its `;` is kept as written when `=` or an ASCII letter or digit
+follows it, as a browser keeps `&sect` in `&section=2`. Leading and trailing
+whitespace is dropped and tabs and newlines are removed, as a browser does. An
+inline link target may hold parentheses in balanced pairs, one level deep. HTML
 comments are not excluded. A relative target must name a file in this
 repository, and its `#fragment`, when present on a Markdown file, must match a
 heading there. An absolute http(s) target is requested anonymously, with a
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import argparse
 import html
+import html.entities
 import re
 import sys
 import time
@@ -65,6 +68,10 @@ BARE_TRAILING = ".,:;!?\"'*_~"
 # within it.
 C0_OR_SPACE = "".join(map(chr, range(0x21)))
 TAB_OR_NEWLINE = re.compile("[\t\n\r]")
+# A named character reference: `&` and the letters and digits after it. The
+# longest name in the HTML table of named references bounds the search.
+NAMED_REFERENCE = re.compile(r"&([0-9A-Za-z]+)")
+LONGEST_NAME = max(map(len, html.entities.html5))
 # Characters http.client will not send, and a browser percent-encodes after
 # the host: whitespace, controls and anything outside ASCII.
 UNSENDABLE = re.compile(r"[^\x21-\x7e]+")
@@ -85,9 +92,31 @@ def bare_url(text: str) -> str:
     return text[:end]
 
 
+def unescape_attribute(value: str) -> str:
+    """Decode the character references in an attribute value with
+    html.unescape, but keep a named reference that has no `;`, such as
+    `&sect`, as written when `=` or an ASCII letter or digit follows it, as
+    the HTML tokenizer keeps it in an attribute value."""
+    def written(m: re.Match) -> str:
+        name, after = m.group(1), value[m.end():m.end() + 1]
+        if after == ";" and name + ";" in html.entities.html5:
+            return m.group()
+        # The tokenizer reads the longest name in the table.
+        for end in range(min(len(name), LONGEST_NAME), 1, -1):
+            if name[:end] in html.entities.html5:
+                if end < len(name) or after == "=":
+                    # html.unescape turns this back into the text as written.
+                    return "&amp;" + name
+                break
+        return m.group()
+
+    return html.unescape(NAMED_REFERENCE.sub(written, value))
+
+
 def attribute_url(value: str) -> str:
-    """The URL a browser follows from a quoted HTML attribute value."""
-    return TAB_OR_NEWLINE.sub("", html.unescape(value).strip(C0_OR_SPACE))
+    """The URL in a quoted HTML attribute value: references decoded, the ends
+    stripped and tabs and newlines removed, as the module docstring says."""
+    return TAB_OR_NEWLINE.sub("", unescape_attribute(value).strip(C0_OR_SPACE))
 
 
 def request_url(url: str) -> str:
