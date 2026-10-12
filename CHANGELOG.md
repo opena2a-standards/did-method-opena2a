@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-11
+
+Change process: this revision changes the security model (Sections 4.2, 6.1
+and 6.5), so Section 9 applies. The 7-day quiet period starts on 2026-10-12,
+the day the pull request for this revision opens; the earliest merge date is
+2026-10-19.
+
 ### Security
 
 - **Resolved `id` must be the requested DID (Sections 4.2, 6.1, 6.5).** A

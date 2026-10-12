@@ -1,6 +1,6 @@
 # The `did:opena2a` DID method specification
 
-**Version:** 0.2 (draft)
+**Version:** 0.3 (draft)
 **Status:** Registered in the W3C DID Extensions registry (did-extensions #717, merged 2026-07-04)
 **License:** Apache License, Version 2.0
 **Editor:** Abdel Sy Fane (OpenA2A, <abdelsyfane@gmail.com>)
@@ -22,9 +22,11 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 ## Status of this document
 
-This is revision 0.2 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
+This is revision 0.3 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
 
 Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
+
+Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
 
 Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.1.0-draft, Section 3.2; `draft-fane-opena2a-aip-03`).
 
