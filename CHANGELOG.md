@@ -65,11 +65,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   arguments, so `--help` ran the check and an unknown argument was accepted;
   `--help` now prints the usage, and an unknown argument exits 2 without
   running the check.
-- **`scripts/check_vectors.py` on a vector whose `resolutionResult` is not an
-  object.** A `resolutionResult`, `didDocument` or `didDocumentMetadata` that
-  is not a JSON object is reported as a malformed vector, with exit 1, instead
-  of ending the run with a traceback. A `didDocument` or `didDocumentMetadata`
-  that is absent or `null` still reads as empty.
+- **`scripts/check_vectors.py` on a vector whose `resolutionResult`,
+  `didDocument` or `didDocumentMetadata` is not an object.** A
+  `resolutionResult` that is not a JSON object, and a `didDocument` or
+  `didDocumentMetadata` that is present and neither an object nor `null`, is
+  reported as a malformed vector, with exit 1. Before, in a vector whose
+  requested DID and expected verdict were well formed: a `resolutionResult`
+  that was not an object ended the run with a traceback; a `didDocument` or
+  `didDocumentMetadata` that was an empty array or string, zero or `false`
+  read as empty and gave a reject verdict, so a vector that expected that
+  reject passed, where it now fails as malformed; and any other value of
+  either member that was neither an object nor `null` ended the run with a
+  traceback, unless it was a `didDocument` and the issuing-registry check had
+  already rejected the vector. A `didDocument` or `didDocumentMetadata` that
+  is absent or `null` still reads as empty.
 - **`scripts/check_vectors.py` runs under `python3 -P` and
   `PYTHONSAFEPATH=1`.** It imports `scripts/check_did_syntax.py` and relied on
   Python putting the script directory on `sys.path`, so it stopped with
