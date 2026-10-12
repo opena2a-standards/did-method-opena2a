@@ -12,7 +12,7 @@
 
 This specification defines the `did:opena2a` Decentralized Identifier method. A `did:opena2a` identifier names a resource (an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or a registry itself) that is registered in an OpenA2A Registry. Resolution returns a W3C DID Document that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose `service` endpoints expose trust lookup, signed trust proofs, and trust badges for the named resource.
 
-The method is implemented by the OpenA2A Registry (`opena2a-org/opena2a-registry`), and `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
+The method is implemented by the OpenA2A Registry, whose source is private and whose reference deployment is public (Section 8), and `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
 
 - Agent Trust eXtension (ATX)
 - Agent Trust Protocol (ATP)
@@ -431,7 +431,7 @@ A single publisher may control many `did:opena2a` DIDs (one per registered resou
 
 ### 8.1 OpenA2A Registry
 
-The reference implementation of the `did:opena2a` method is the OpenA2A Registry at <https://github.com/opena2a-org/opena2a-registry>. The DID-handling code is concentrated in:
+The reference implementation of the `did:opena2a` method is the OpenA2A Registry. Its source repository, `opena2a-org/opena2a-registry`, is private: an anonymous reader cannot open it, and the citations into it in Sections 4.2, 5.1 and 8.4 and in `CHANGELOG.md` can be checked only by readers with access. A public reader can check the reference deployment's behavior and the DID Documents it returns (Section 8.4), and the conformance suites (Section 8.2). Within the private source, the DID-handling code is concentrated in:
 
 - `internal/application/did_service.go`: parsing, multibase encoding, DID Document construction.
 - `internal/interfaces/http/handlers/did_handler.go`: HTTP surface for Resolve, well-known, trust proof, revocation.
@@ -492,7 +492,7 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - W3C Patent Policy: <https://www.w3.org/Consortium/Patent-Policy-20040205/>
 - RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA), Section 7.1 test vectors: <https://datatracker.ietf.org/doc/html/rfc8032#section-7.1>
 - OpenA2A Agent Identity Protocol, AIP-SPEC 1.1.0-draft, Section 3.2 (method scoping): <https://github.com/opena2a-standards/agent-identity-protocol>
-- OpenA2A Registry source: <https://github.com/opena2a-org/opena2a-registry>
+- OpenA2A Registry source: `opena2a-org/opena2a-registry`, private (Section 8.1)
 - OpenA2A reference deployment discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
 - Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
 - Agent Trust Protocol (ATP) conformance suite: <https://github.com/opena2a-standards/atp-conformance>

@@ -118,6 +118,16 @@ the day the pull request for this revision opens; the earliest merge date is
   ATX verifies ML-DSA-65 in both Go and Python, ATP verifies it in Go and
   records it as present in Python, and AIP verifies Ed25519 only in both
   because no AIP fixture carries an ML-DSA-65 signature.
+- **Reference implementation links (README, Abstract, Sections 8.1 and 10).**
+  The README and the spec no longer link to `opena2a-org/opena2a-registry`,
+  which answers `404` to an anonymous reader. Section 8.1 states that the
+  registry source is private, that the citations into it can be checked only
+  with access, and that a public reader checks the reference deployment
+  (Section 8.4) and the conformance suites (Section 8.2). The README's registry
+  link points to spec Section 8 and its references list the live discovery
+  document. `scripts/check_links.py` checks every link in the README and the
+  spec: relative targets and heading anchors offline, absolute targets with an
+  anonymous request.
 
 ## [0.2.0] - 2026-09-08
 

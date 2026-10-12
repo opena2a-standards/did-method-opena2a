@@ -125,9 +125,9 @@ This specification is licensed under [Apache-2.0](./LICENSE). By contributing, y
 
 - W3C DID Core: <https://www.w3.org/TR/did-core/>
 - W3C DID Extensions registry: <https://github.com/w3c/did-extensions>
-- OpenA2A Registry: <https://github.com/opena2a-org/opena2a-registry>
+- OpenA2A Registry reference deployment, discovery document (live): <https://api.oa2a.org/.well-known/opena2a>. The registry source is private; spec Section 8 says what a public reader can check.
 
-[registry]: https://github.com/opena2a-org/opena2a-registry
+[registry]: ./did-method-opena2a.md#8-reference-implementations
 [did-core]: https://www.w3.org/TR/did-core/
 [atx]: https://github.com/opena2a-standards/atx-conformance
 [atp]: https://github.com/opena2a-standards/atp-conformance
