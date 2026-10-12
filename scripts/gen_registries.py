@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Generate registries/<id>.json from the marked definition tables in the spec.
+"""Generate registries/<file>.json (per TABLES) from the marked spec tables.
 
 A table-shaped shared definition sits under a marker comment
 `<!-- opena2a-definition: <id> -->` in the specification; the table that
 follows the marker is the definition, and the JSON file under registries/ is
 generated from it so consumers can pin a file by commit the way the
-conformance suites pin schemas. `--check` fails when a generated file is
-stale. python3 standard library only.
+conformance suites pin schemas. TABLES maps each marker id to its file name,
+which defaults to the id. `--check` fails when a generated file is stale.
+python3 standard library only.
 """
 from __future__ import annotations
 
@@ -64,13 +65,22 @@ def generate() -> dict:
     return out
 
 
+def output_path(rid: str) -> Path:
+    return REGISTRIES / f"{TABLES[rid].get('file', rid)}.json"
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    files = [f"  {output_path(rid).relative_to(ROOT)} (marker id {rid})" for rid in TABLES]
+    ap = argparse.ArgumentParser(
+        description=__doc__,
+        epilog="generated files:\n" + "\n".join(files),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     ap.add_argument("--check", action="store_true", help="fail if a generated file is stale")
     args = ap.parse_args()
     stale = []
     for rid, data in generate().items():
-        path = REGISTRIES / f"{TABLES[rid].get('file', rid)}.json"
+        path = output_path(rid)
         text = json.dumps(data, indent=2, ensure_ascii=False) + "\n"
         if args.check:
             if not path.is_file() or path.read_text(encoding="utf-8") != text:

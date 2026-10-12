@@ -79,7 +79,7 @@ For the security-considerations view of the same axis (availability risk, key ro
 
 Revision 0.2 changes the DID Document shape (subject keys under `authentication`, registry key under `assertionMethod`), corrects the `publicKeyMultibase` description to base58btc with the multicodec prefix, adds the issuing-registry rule, and keeps the resolution media type at `application/did+ld+json` (the served document is JSON-LD). The reference resolver still emits the 0.1 document shape; the spec's implementation status notes and [`CHANGELOG.md`](./CHANGELOG.md) record what is open.
 
-Revision 0.3 requires a resolved DID Document's `id` to equal the requested DID, and a `404` for a DID the registry has not registered rather than another document (Sections 4.2, 6.1 and 6.5). The reference deployment still answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document (measured 2026-10-11).
+Revision 0.3 requires a resolved DID Document's `id` to equal the requested DID in its canonical form (Section 3.1.2), and a `404` for a DID the registry has not registered rather than another document (Sections 4.2, 6.1 and 6.5). The reference deployment still answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document (measured 2026-10-11).
 
 ## Resolution
 
@@ -93,7 +93,9 @@ The registry replies with a DID Document, `Content-Type: application/did+ld+json
 
 ## Examples
 
-See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves plus the registry self-DID. `examples/agent.json` carries a real subject key: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to `did:opena2a:agent:agent_conformance_test_001`. The registry key values are placeholders. The examples are illustrative; no conformance suite pins a resolved DID Document (as of 2026-09-08).
+See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves (`agent`, `mcp_server`, `ai_tool`, `llm`, `skill`) plus the registry self-DID. Each names a DID that resolves at `api.oa2a.org`, and its `service` endpoints are the ones the deployment returns, byte for byte (measured 2026-10-11). The deployment catalogues agents under the deprecated alias `a2a_agent` (spec Section 3.2), so the agent example's trust-lookup and badge URLs carry that type. A resolved document still differs from its example where 0.2 differs from what the reference resolver emits (it also lists the registry key under `authentication`; spec Section 5.3 records how the registry document differs). The registry key values are placeholders.
+
+[`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry that the deployment does not serve (both answer `404`). `agent.json` is `did:opena2a:agent:agent_conformance_test_001` and carries a real subject key under `authentication`: the RFC 8032 Section 7.1 Test 2 public key, the TEST-ONLY key the AIP conformance suite binds to that DID. `authority.json` is `did:opena2a:authority:opena2a.org`. The examples are illustrative; no conformance suite pins a resolved DID Document (as of 2026-09-08). `python3 scripts/check_examples.py` checks the file set, the 0.2 shape and the service URL encoding; with `--live` it also resolves each DID against the reference deployment.
 
 ## Conformance
 
@@ -103,11 +105,19 @@ Three conformance suites carry `did:opena2a:` identifiers in byte-stable test fi
 - [`atp-conformance`][atp]: Agent Trust Protocol
 - [`aip-conformance`][aip]: Agent Identity Protocol
 
-Each suite ships reference verifiers in Go (full hybrid Ed25519 + ML-DSA-65) and Python (Ed25519; ML-DSA-65 signatures are presence-checked, with full verification delegated to the Go verifier). Fixture bytes are pinned by each suite's `MANIFEST.sha256`, and both verifiers must reproduce every fixture's pinned expected verdict. The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
+Each suite ships reference verifiers in Go and Python. Fixture bytes are pinned by each suite's `MANIFEST.sha256`, and both verifiers must reproduce every fixture's pinned expected verdict. Signature coverage differs by suite:
+
+- ATX: both verifiers verify Ed25519 and ML-DSA-65 hybrid signatures.
+- ATP: the Go verifier verifies Ed25519 and ML-DSA-65; the Python verifier verifies Ed25519 and records an ML-DSA-65 signature as present without verifying it, leaving full hybrid verification to the Go verifier.
+- AIP: both verifiers verify Ed25519 only, and no AIP fixture carries an ML-DSA-65 signature.
+
+The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
 
 ## Contributing
 
 Editorial corrections, clarifications, and link fixes are welcome via pull request. Substantive changes (changes to the ABNF, the operation surface, the DID Document shape, or the security model) require a version bump, editor review, and a 7-day quiet period per Section 9 of the spec.
+
+`python3 scripts/check_did_syntax.py` checks every `did:opena2a` string in this repository against the Section 3.1 grammar and the Section 3.1.2 decoding step; run it after changing either, or after adding an example DID.
 
 This specification is licensed under [Apache-2.0](./LICENSE). By contributing, you agree your contributions are likewise licensed under Apache-2.0. The W3C registry entry that cites this specification is governed separately by the [W3C Patent Policy][w3c-pp] and [Document License][w3c-dl].
 
@@ -115,9 +125,9 @@ This specification is licensed under [Apache-2.0](./LICENSE). By contributing, y
 
 - W3C DID Core: <https://www.w3.org/TR/did-core/>
 - W3C DID Extensions registry: <https://github.com/w3c/did-extensions>
-- OpenA2A Registry: <https://github.com/opena2a-org/opena2a-registry>
+- OpenA2A Registry reference deployment, discovery document (live): <https://api.oa2a.org/.well-known/opena2a>. The registry source is private; spec Section 8 says what a public reader can check.
 
-[registry]: https://github.com/opena2a-org/opena2a-registry
+[registry]: ./did-method-opena2a.md#8-reference-implementations
 [did-core]: https://www.w3.org/TR/did-core/
 [atx]: https://github.com/opena2a-standards/atx-conformance
 [atp]: https://github.com/opena2a-standards/atp-conformance

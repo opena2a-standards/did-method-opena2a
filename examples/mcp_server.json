@@ -29,7 +29,7 @@
     {
       "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#badge",
       "type": "TrustBadge",
-      "serviceEndpoint": "https://api.oa2a.org/badge/mcp_server/%40modelcontextprotocol%2Fserver-filesystem"
+      "serviceEndpoint": "https://api.oa2a.org/badge/mcp_server/@modelcontextprotocol%2Fserver-filesystem"
     }
   ],
   "created": "2026-02-20T00:00:00Z",

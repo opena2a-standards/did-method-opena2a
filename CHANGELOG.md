@@ -6,6 +6,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+Change process: the percent-encoding entry below changes the ABNF, so Section 9
+applies: the revision that carries it takes a version bump, and the 7-day quiet
+period starts the day its pull request opens.
+
+### Changed
+
+- **Percent-encoded `resource-id` (Sections 3.1 and 3.1.2).** The `resource-id`
+  production admits `pct-encoded` triplets, so the strict DID Core
+  serialization that Section 3.1.1 calls equivalent
+  (`did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem` with the
+  `resource-id` encoded as `%40modelcontextprotocol%2Fserver-filesystem`) now
+  parses; it was the only DID string in the README, specification, CHANGELOG
+  and examples that did not. New Section 3.1.2 defines the decoding step: the
+  `resource-id` is decoded exactly once, a triplet that decodes to a character
+  outside `unreserved` and `:` makes the DID invalid, a resolver decodes before
+  lookup, and identifiers are compared and collisions checked in the decoded
+  canonical form. Sections 3.1.1, 3.3, 4.1 and 4.2 refer to the step.
+  Sections 4.2, 6.1 and 6.5 compare the returned `id` with the canonical form
+  of the requested DID, so the canonical `id` that a percent-encoded request
+  resolves to passes the verifier check; a request in canonical form, the form
+  every signed artifact carries, compares byte for byte as before. The encoded
+  serialization is spelled out only in Section 3.1.1, which the family
+  spec-drift check `did-example-forms` excludes; Section 4.2 and this entry
+  refer to it. Implementation status: the reference resolver returns `404` for
+  the encoded form as of 2026-10-11 (Section 4.2); the resolver change is
+  open.
+
+### Added
+
+- `scripts/check_did_syntax.py` compiles the Section 3.1 ABNF from the
+  specification, checks every `did:opena2a` string in the README,
+  specification, CHANGELOG and examples against it, checks that a
+  percent-encoded `did:opena2a` string is spelled out only in Section 3.1.1 of
+  the specification, and checks the Section 3.1.2 decoding step against
+  encoded and invalid vectors. python3 standard library only.
+
 ## [0.3.0] - 2026-10-11
 
 Change process: this revision changes the security model (Sections 4.2, 6.1
@@ -30,6 +66,11 @@ the day the pull request for this revision opens; the earliest merge date is
 
 ### Fixed
 
+- **Section 2 (editorial).** The prefix sentence now says the prefix is
+  lowercase and points to Section 3.3, which holds the one rule: the prefix is
+  case-sensitive lowercase. It previously said the prefix "is normalized to
+  lowercase", which contradicted Section 3.3 and the reference resolver, which
+  rejects `did:OPENA2A:...` with `400` rather than lowercasing it.
 - **Section 4.2 implementation note.** The cited command is now a `GET` that
   prints only the response headers; the reference resolver answers `HEAD` with
   `405`, so the previous `curl -sI` command did not show the media type.
@@ -38,9 +79,64 @@ the day the pull request for this revision opens; the earliest merge date is
   `examples/registry.json`: three verification methods (two Ed25519 entries for
   one key and an ML-DSA-65 `JsonWebKey`), all three under `assertionMethod`, the
   JWK context, and `created` and `updated` set to the request time.
+- **Section 3.2 implementation note.** Records that the reference resolver
+  answers a DID with a well-formed but unregistered `resource-type` (`widget`)
+  with `400` instead of the `404` that Sections 3.2 and 4.2 call for. It also
+  records that `400` is correct for a `resource-type` outside the ABNF
+  (`agent9`, which contains a digit). The resolver change in `opena2a-registry`
+  is open.
+- **Section 4.4 implementation note.** Records that the reference resolver does
+  not yet report deactivation: a `suspended` or `deprecated` resource resolves
+  as an active one, with the bare DID Document, no `didDocumentMetadata` and
+  all three services, and the trust proof for the deprecated record carries the
+  verdict `listed`. Of the first 100 `a2a_agent` records, 1 is `suspended` and
+  9 are `deprecated`. The resolver change in `opena2a-registry` is open.
 - **README.** The closing paragraph of the use cases is headed "What you can
   check yourself" and counts only the AIP fixtures that carry a `did:opena2a`
   identifier (4 of 7).
+- **Examples match the reference deployment.** `examples/` holds one DID
+  Document per resource type the deployment serves (`agent`, `mcp_server`,
+  `ai_tool`, `llm`, `skill`) plus the registry self-DID. Each one names a DID
+  that resolves and carries the `service` endpoints the deployment returns.
+  `ai_tool.json`, `llm.json` and `skill.json` are new. `agent.json` now names
+  a catalogued agent. The `mcp_server.json` badge path leaves `@` unescaped,
+  as the live document does. `registry.json` uses the `z6Mk...` placeholder in
+  place of the 0.1 base64 placeholder. The AIP conformance agent, with its
+  subject key, and `authority:opena2a.org` both answer `404` at the
+  deployment, so they moved to `examples/conformance/`. The new
+  `scripts/check_examples.py` checks the file set, the 0.2 shape and the URL
+  encoding, and `--live` resolves each DID.
+- **Sections 6.6, 7.1 and 7.2: offline bundle and prefix lookup.** The bundle
+  and the k-anonymous lookup cover only the DIDs whose proofs the registry
+  holds, so the text no longer says that the bundle lets a consumer verify any
+  DID offline, that the lookup returns all proofs under a prefix, or that an
+  hourly download hides all per-DID traffic. Section 7.2 names the two
+  properties these depend on (coverage of the registry's active resources and
+  a signature over the whole bundle) and states that a bundle built from
+  on-request proofs discloses recent lookups. Section 8.4 records the reference
+  deployment's measured bundle and lookup.
+- **Registry generator help.** `scripts/gen_registries.py --help` described the
+  output as `registries/<id>.json`, but the file name comes from the table's
+  entry in the script, not from the marker id. The help now says
+  `registries/<file>.json` and lists each generated file beside its marker id
+  (`registries/resource-types.json` for `did-resource-types`).
+- **README and spec Section 8.2 verifier coverage.** One sentence described
+  every suite's verifiers as Go with full hybrid Ed25519 + ML-DSA-65 and
+  Python with Ed25519 only, ML-DSA-65 delegated to Go; the 0.2.0 entry below
+  repeats it. That holds for ATP only. Both now state the coverage per suite:
+  ATX verifies ML-DSA-65 in both Go and Python, ATP verifies it in Go and
+  records it as present in Python, and AIP verifies Ed25519 only in both
+  because no AIP fixture carries an ML-DSA-65 signature.
+- **Reference implementation links (README, Abstract, Sections 8.1 and 10).**
+  The README and the spec no longer link to `opena2a-org/opena2a-registry`,
+  which answers `404` to an anonymous reader. Section 8.1 states that the
+  registry source is private, that the citations into it can be checked only
+  with access, and that a public reader checks the reference deployment
+  (Section 8.4) and the conformance suites (Section 8.2). The README's registry
+  link points to spec Section 8 and its references list the live discovery
+  document. `scripts/check_links.py` checks every link in the README and the
+  spec: relative targets and heading anchors offline, absolute targets with an
+  anonymous request.
 
 ## [0.2.0] - 2026-09-08
 
