@@ -17,7 +17,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   so the revision that carries it is a version bump with the 7-day quiet period.
   Implementation status (measured 2026-10-11): the reference deployment answers
   every `did:opena2a:registry:<authority>` DID, `registry:evil.test` included,
-  with `200` and its own registry DID Document; the resolver change is open.
+  with `200` and its own registry DID Document; an unregistered `agent` DID
+  returns `404` with a body that does not identify the missing resource; the
+  resolver change is open.
 
 ### Fixed
 
