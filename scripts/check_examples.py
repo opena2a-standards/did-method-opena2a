@@ -106,13 +106,18 @@ def check_doc(name: str, doc: dict, registered: set, expect_type: str | None, se
 
 
 def resolve(did: str) -> tuple:
+    """Return (status, document, error); error is set when no HTTP status was received."""
     req = urllib.request.Request(f"{BASE}/api/v1/did/{did}",
                                  headers={"User-Agent": "did-method-opena2a/check-examples"})
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
-            return resp.status, json.load(resp)
+            return resp.status, json.load(resp), None
     except urllib.error.HTTPError as err:
-        return err.code, None
+        return err.code, None, None
+    except OSError as err:
+        # URLError (DNS failure, refused connection), TimeoutError and other
+        # socket errors: report the reason instead of a traceback.
+        return None, None, f"request failed: {getattr(err, 'reason', err)}"
 
 
 def main() -> int:
@@ -141,7 +146,10 @@ def main() -> int:
     if args.live:
         for path, doc, served in docs:
             name = str(path.relative_to(ROOT))
-            status, live = resolve(doc["id"])
+            status, live, error = resolve(doc["id"])
+            if error:
+                problems.append(f"{name}: {doc['id']}: {error}")
+                continue
             if not served:
                 if status != 404:
                     problems.append(f"{name}: {doc['id']} answered {status}; it is served, move it to examples/")

@@ -6,9 +6,10 @@ The grammar is read from the fenced block under the
 compiled to a regular expression, so the check follows the ABNF as written
 rather than a copy of it. Four checks run:
 
-- every `did:opena2a:` string in the README, the specification, the CHANGELOG
-  and examples/ parses (templates such as `did:opena2a:<type>:<id>` and the
-  bare prefix are skipped);
+- every `did:opena2a:` string in a Markdown or JSON file of the repository
+  parses, the files the family spec-drift check `did-example-forms` reads
+  (templates such as `did:opena2a:<type>:<id>` and the bare prefix are
+  skipped; hidden directories are not read);
 - a percent-encoded `did:opena2a:` string is spelled out only in Section 3.1.1
   of the specification, the one place the family spec-drift check
   `did-example-forms` excludes; anywhere else it turns that check red;
@@ -29,7 +30,9 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = ROOT / "did-method-opena2a.md"
 MARKER = "<!-- opena2a-definition: did-syntax -->"
 PREFIX = "did:opena2a:"
-SOURCES = [ROOT / "README.md", SPEC, ROOT / "CHANGELOG.md", *sorted((ROOT / "examples").glob("*.json"))]
+SOURCE_SUFFIXES = (".md", ".json")
+# Local tool directories that .gitignore keeps out of the repository.
+SKIP_DIRS = {"node_modules", "venv", "__pycache__"}
 
 # A DID in running text, JSON or code ends at whitespace, a quote, a backtick or
 # a bracket. A match followed by "<" is a template, not a DID.
@@ -230,9 +233,21 @@ def canonical_form(did: str, did_rx, rid_rx) -> str | None:
     return f"{PREFIX}{rtype}:{decoded}{hash_mark}{fragment}"
 
 
-def documented_dids() -> dict:
+def sources() -> list:
+    """Every Markdown and JSON file under ROOT outside hidden and tool directories."""
+    out = []
+    for path in ROOT.rglob("*"):
+        parts = path.relative_to(ROOT).parts
+        if any(p.startswith(".") or p in SKIP_DIRS for p in parts[:-1]) or parts[-1].startswith("."):
+            continue
+        if path.suffix in SOURCE_SUFFIXES and path.is_file():
+            out.append(path)
+    return sorted(out)
+
+
+def documented_dids(paths: list) -> dict:
     found = {}
-    for path in SOURCES:
+    for path in paths:
         text = path.read_text(encoding="utf-8")
         for m in DID_IN_TEXT.finditer(text):
             did = m.group(0).rstrip(".")
@@ -275,7 +290,8 @@ def main() -> int:
     did_rx = re.compile(compiler.rule("opena2a-did"))
     rid_rx = re.compile(compiler.rule("resource-id"))
     failures = []
-    docs = documented_dids()
+    paths = sources()
+    docs = documented_dids(paths)
     for did, where in sorted(docs.items()):
         if not did_rx.fullmatch(did):
             failures.append(f"does not parse: {did} ({', '.join(where)})")
@@ -298,7 +314,7 @@ def main() -> int:
     for failure in failures:
         print(failure, file=sys.stderr)
     vectors = len(MUST_PARSE) + len(MUST_NOT_PARSE) + len(DECODES_TO) + len(DOES_NOT_DECODE)
-    print(f"{len(docs)} distinct did:opena2a strings in {len(SOURCES)} files, "
+    print(f"{len(docs)} distinct did:opena2a strings in {len(paths)} files, "
           f"{vectors} vectors, {len(failures)} failures")
     return 1 if failures else 0
 
