@@ -6,6 +6,7 @@ Run from the repository root: python3 -m unittest discover -s scripts
 from __future__ import annotations
 
 import sys
+import tempfile
 import time
 import unittest
 from pathlib import Path
@@ -181,9 +182,52 @@ class HtmlAttributes(unittest.TestCase):
                      '<b>x="https://example.org/a\nthe ">" sign</b>\n',
                      '<a="https://example.org/a\nb">t</a>\n',
                      '<1 x="https://example.org/a\nb">t</a>\n',
-                     '<a title=">" href="https://example.org/a\nb">t</a>\n'):
+                     '<a < href="https://example.org/a\nb">t</a>\n',
+                     '<a x > href="https://example.org/a\nb">t</a>\n'):
             self.assertEqual(check_links.link_targets(text), [(1, "https://example.org/a")],
                              text)
+
+    def test_tag_that_no_greater_than_closes_is_not_a_start_tag(self):
+        for text in ("If a <b then x='https://example.org/a\nthe users' guide\n",
+                     '<a href="https://example.org/a\nb" title="t"\n',
+                     '<a href="https://example.org/a\nb" <b>\n'):
+            self.assertEqual(check_links.link_targets(text), [(1, "https://example.org/a")],
+                             text)
+
+    def test_earlier_quoted_value_that_holds_a_less_than_or_greater_than_stays_in_the_tag(self):
+        # The HTML tokenizer keeps a `<` or `>` in a quoted value.
+        for text in ('<a title=">" href="https://example.org/a\nb">t</a>\n',
+                     "<a title='<' href=\"https://example.org/a\nb\">t</a>\n",
+                     '<a title = "a > b" href="https://example.org/a\nb">t</a>\n'):
+            self.assertEqual(check_links.link_targets(text), [(1, "https://example.org/ab")],
+                             text)
+
+    def test_less_than_or_greater_than_in_a_code_span_or_link_form_ends_the_attribute_part(self):
+        self.assertEqual(check_links.link_targets('<a `>` href="https://example.org/a\nb">t</a>\n'),
+                         [(1, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets('<a `<` href="https://example.org/a\nb">t</a>\n'),
+                         [(1, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets('<a <https://example.org/x> '
+                                                  'href="https://example.org/a\nb">t</a>\n'),
+                         [(1, "https://example.org/x"), (1, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets('<a [>](y) href="https://example.org/a\nb">t</a>\n'),
+                         [(1, "y"), (1, "https://example.org/a")])
+
+    def test_value_whose_line_break_comes_before_its_url_is_read_as_one_only_in_a_start_tag(self):
+        self.assertEqual(check_links.link_targets('x="\nhttps://example.org/a b" c\n'),
+                         [(2, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets("x='  \n  https://example.org/a b' c\n"),
+                         [(2, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets('<a href="\nhttps://example.org/a\nb">t</a>\n'),
+                         [(2, "https://example.org/ab")])
+        self.assertEqual(check_links.link_targets('<a href="\n  https://example.org/a">t</a>\n'),
+                         [(2, "https://example.org/a")])
+
+    def test_url_in_a_value_is_reported_at_the_line_of_its_scheme(self):
+        self.assertEqual(check_links.link_targets('<a href=\n"https://example.org/a">t</a>\n'),
+                         [(2, "https://example.org/a")])
+        self.assertEqual(check_links.link_targets('<a href="&#10;https://example.org/a">t</a>\n'),
+                         [(1, "https://example.org/a")])
 
     def test_value_outside_a_start_tag_with_no_bare_url_at_its_scheme_is_not_a_target(self):
         # Whitespace or `<` follows the scheme, and the block holds no other URL.
@@ -334,6 +378,136 @@ class InlineLinks(unittest.TestCase):
             self.assertEqual(targets(f"[a]({url})\n"), [url])
 
 
+class FencedCodeBlocks(unittest.TestCase):
+    def test_closing_fence_is_a_run_of_the_same_character_at_least_as_long(self):
+        self.assertEqual(targets("~~~~\nhttps://example.org/a\n~~~\nhttps://example.org/b\n"), [])
+        self.assertEqual(targets("```\nhttps://example.org/a\n~~~\nhttps://example.org/b\n"), [])
+        self.assertEqual(check_links.link_targets("~~~\nhttps://example.org/a\n~~~~\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+
+    def test_closing_fence_has_only_spaces_or_tabs_after_it(self):
+        self.assertEqual(targets("```\nhttps://example.org/a\n``` x\nhttps://example.org/b\n"), [])
+        self.assertEqual(check_links.link_targets("```\nhttps://example.org/a\n``` \t\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+
+    def test_run_of_backticks_with_a_backtick_after_it_opens_no_fence(self):
+        self.assertEqual(check_links.link_targets("``` a ```\nhttps://example.org/a\n"),
+                         [(2, "https://example.org/a")])
+        self.assertEqual(targets("~~~ a ~~~\nhttps://example.org/a\n"), [])
+
+    def test_fenced_block_in_a_block_quote(self):
+        self.assertEqual(check_links.link_targets("> ```\n> https://example.org/a\n> ```\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        self.assertEqual(targets("> > ~~~\n> > https://example.org/a\n> > ~~~\n"), [])
+        self.assertEqual(check_links.link_targets(">```\n>https://example.org/a\n>```\n"
+                                                  ">https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        # The block quote of the fence is the one its line is in, not a
+        # deeper one that ended above it.
+        self.assertEqual(check_links.link_targets("> > a\n> ```\n> https://example.org/a\n"
+                                                  "> ```\n> https://example.org/b\n"),
+                         [(5, "https://example.org/b")])
+
+    def test_fenced_block_closes_where_its_block_quote_ends(self):
+        self.assertEqual(check_links.link_targets("> ```\n> https://example.org/a\n"
+                                                  "https://example.org/b\n"),
+                         [(3, "https://example.org/b")])
+        self.assertEqual(check_links.link_targets("> ```\n> https://example.org/a\n\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        self.assertEqual(check_links.link_targets("> > ```\n> https://example.org/a\n"),
+                         [(2, "https://example.org/a")])
+
+    def test_line_in_a_fenced_block_holds_the_block_quote_markers_of_its_fence(self):
+        # A `>` beyond those markers is part of the code.
+        self.assertEqual(check_links.link_targets("> ```\n> > https://example.org/a\n> ```\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        self.assertEqual(check_links.link_targets("```\n> ```\nhttps://example.org/a\n```\n"
+                                                  "https://example.org/b\n"),
+                         [(5, "https://example.org/b")])
+
+    def test_closing_fence_is_indented_as_its_opening_fence_can_be(self):
+        for indent in ("", " ", "  ", "   "):
+            for fence in ("```", "~~~"):
+                text = (f"{indent}{fence}\nhttps://example.org/a\n{indent}{fence}\n"
+                        "https://example.org/b\n")
+                self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/b")],
+                                 text)
+        self.assertEqual(check_links.link_targets("```\nhttps://example.org/a\n   ```\n"
+                                                  "https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        self.assertEqual(check_links.link_targets("> ```\n> https://example.org/a\n>    ```\n"
+                                                  "> https://example.org/b\n"),
+                         [(4, "https://example.org/b")])
+        self.assertEqual(targets("> ```\n> https://example.org/a\n>     ```\n"
+                                 "> https://example.org/b\n"), [])
+
+    def test_fence_in_a_block_quote_is_indented_from_its_marker(self):
+        self.assertEqual(targets(">    ```\n> https://example.org/a\n"), [])
+        self.assertEqual(check_links.link_targets(">     ```\n> https://example.org/a\n"),
+                         [(2, "https://example.org/a")])
+        # A tab runs to the next multiple of four columns: three after `>`,
+        # one of which is the space of the marker.
+        self.assertEqual(targets(">\t```\n> https://example.org/a\n"), [])
+        self.assertEqual(check_links.link_targets(">\t\t```\n> https://example.org/a\n"),
+                         [(2, "https://example.org/a")])
+
+    def test_block_quote_marker_holds_at_most_three_spaces_of_indentation(self):
+        self.assertEqual(targets("   > ```\n   > https://example.org/a\n"), [])
+        self.assertEqual(check_links.link_targets("    > ```\n    > https://example.org/a\n"),
+                         [(2, "https://example.org/a")])
+
+    def test_fence_after_a_list_item_marker_on_its_line_is_not_a_fence(self):
+        # CommonMark opens a fenced code block in the list item. This script
+        # counts a fence's indentation from the start of the line, or from
+        # the markers of a block quote, its documented simplification, so the
+        # line is prose and the URL below it is read as a link.
+        for text in ("- ```\n  https://example.org/x\n",
+                     "1. ```\n   https://example.org/x\n",
+                     "> - ```\n>   https://example.org/x\n"):
+            self.assertEqual(check_links.link_targets(text), [(2, "https://example.org/x")],
+                             text)
+        # In a block quote the count is from its markers, not from the text
+        # of a list item in it.
+        self.assertEqual(check_links.link_targets("> 1. a\n>\n>       ```\n"
+                                                  ">       https://example.org/x\n"),
+                         [(4, "https://example.org/x")])
+        # The fence that closes such a block in CommonMark, at two spaces, is
+        # one here and opens a block, so the lines after it are hidden.
+        text = "- ```\n  https://example.org/x\n  ```\n\nSee https://example.org/after\n"
+        self.assertEqual(check_links.link_targets(text), [(2, "https://example.org/x")])
+
+    def test_code_span_ends_a_bare_url(self):
+        self.assertEqual(targets("https://example.org/a`b`c\n"), ["https://example.org/a"])
+
+    def test_heading_anchors_use_the_same_fence_rule(self):
+        self.assertEqual(check_links.heading_anchors("~~~~\n~~~\n# A\n~~~~\n# B\n"), {"b"})
+        self.assertEqual(check_links.heading_anchors("``` a ```\n# B\n"), {"b"})
+        self.assertEqual(check_links.heading_anchors("> ```\n# B\n```\n# C\n"), {"b"})
+
+
+class RelativeTargets(unittest.TestCase):
+    def test_target_outside_the_repository_is_reported_even_when_its_file_exists(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve() / "repo"
+            root.mkdir()
+            doc = root / "README.md"
+            doc.write_text("# Top\n", encoding="utf-8")
+            (root / "inside.md").write_text("# In\n", encoding="utf-8")
+            outside = root.parent / "outside.md"
+            outside.write_text("# Out\n", encoding="utf-8")
+            with mock.patch.object(check_links, "ROOT", root):
+                for target in ("../outside.md", "../missing.md", str(outside),
+                               "../repo/../outside.md"):
+                    self.assertIsNotNone(check_links.check_relative(doc, target), target)
+                for target in ("inside.md", "inside.md#in", "./", "#top", "../repo/inside.md"):
+                    self.assertIsNone(check_links.check_relative(doc, target), target)
+
+
 class RequestUrls(unittest.TestCase):
     def test_url_of_printable_ascii_is_requested_as_written(self):
         url = "https://example.org/a/b?q=<x>&r=%20#top"
@@ -438,6 +612,23 @@ class LongLines(unittest.TestCase):
 
     def test_run_of_unclosed_tags_before_a_value_read_across_lines(self):
         self.assert_linear("", "<a", ' x="https://a\nb">', "https://ab")
+
+    def test_run_of_unclosed_tags_after_a_value_read_across_lines_in_prose(self):
+        # Nothing after the run ends a tag name that could hold a `<`.
+        self.assert_linear('x="https://a\nb" ', "<a", "", "https://a")
+
+    def test_run_of_tags_holding_quoted_values_after_a_value_read_across_lines_in_prose(self):
+        self.assert_linear('x="https://a\nb" ', '<a x="', "", "https://a")
+        self.assert_linear('x="https://a\nb" ', "<a x='>", "", "https://a")
+
+    def test_run_of_block_quote_markers(self):
+        self.assert_linear("", ">", " https://example.org/x", "https://example.org/x")
+
+    def test_run_of_lines_after_a_run_of_block_quote_markers(self):
+        self.assert_linear(">" * (self.LENGTH // 4) + " a\n", ">\n", "https://example.org/x",
+                           "https://example.org/x")
+        self.assert_linear(">" * (self.LENGTH // 4) + " ```\n", "\n", "https://example.org/x",
+                           "https://example.org/x")
 
     def test_run_of_letters_after_an_ampersand_in_an_attribute_value(self):
         self.assert_linear('<a href="https://example.org/&', "a", '">t</a>',
