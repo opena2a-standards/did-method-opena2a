@@ -9,6 +9,7 @@ import sys
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
@@ -95,11 +96,57 @@ class HtmlAttributes(unittest.TestCase):
         self.assertEqual(targets('<a href="https://example.org/a&notin;b">t</a>\n'),
                          ["https://example.org/a∉b"])
 
+    def test_name_that_is_not_in_the_table_with_its_semicolon_is_read_by_its_longest_prefix(self):
+        # `&not` is in the table and a letter follows it, so it stays as written.
+        url = "https://example.org/a&notit;"
+        self.assertEqual(targets(f'<a href="{url}">t</a>\n'), [url])
+
+    def test_name_that_is_in_the_table_only_with_a_semicolon_is_kept_without_it(self):
+        url = "https://example.org/a&notin"
+        self.assertEqual(targets(f'<a href="{url}">t</a>\n'), [url])
+
+    def test_named_reference_of_five_or_six_characters_is_kept_before_equals(self):
+        for url in ("https://example.org/?x=1&times=3", "https://example.org/?x=1&middot=3"):
+            self.assertEqual(targets(f'<a href="{url}">t</a>\n'), [url])
+
+    def test_two_character_named_reference_is_kept_before_a_letter(self):
+        url = "https://example.org/?x=1&ltx=3"
+        self.assertEqual(targets(f'<a href="{url}">t</a>\n'), [url])
+
+    def test_decimal_reference_of_more_than_4300_digits_is_read_by_its_value(self):
+        self.assertEqual(targets('<a href="https://example.org/&#' + "1" * 5000 + ';">t</a>\n'),
+                         ["https://example.org/�"])
+        self.assertEqual(targets('<a href="https://example.org/&#' + "0" * 5000 + '65;">t</a>\n'),
+                         ["https://example.org/A"])
+
     def test_whitespace_is_dropped_from_the_value_as_a_browser_does(self):
         self.assertEqual(targets('<a href="https://example.org/x ">t</a>\n'),
                          ["https://example.org/x"])
         self.assertEqual(targets('<a href="https://example.org/a&#9;b&#10;c">t</a>\n'),
                          ["https://example.org/abc"])
+
+    def test_only_c0_controls_and_space_are_stripped_from_the_value(self):
+        self.assertEqual(check_links.attribute_url("https://example.org/x "),
+                         "https://example.org/x ")
+        self.assertEqual(targets('<a href="https://example.org/x&nbsp;">t</a>\n'),
+                         ["https://example.org/x "])
+
+    def test_whitespace_before_the_scheme_is_dropped(self):
+        for value in (" https://example.org/x", "\t https://example.org/x",
+                      "&#32;https://example.org/x", "&#x20;https://example.org/x",
+                      "&#0032https://example.org/x", "&Tab;&NewLine;https://example.org/x"):
+            self.assertEqual(targets(f'<a href="{value}">text</a>\n'), ["https://example.org/x"])
+
+    def test_value_continues_onto_the_next_line_without_the_line_break(self):
+        self.assertEqual(check_links.link_targets('<a href="https://example.org/a\nb">t</a>\n'),
+                         [(1, "https://example.org/ab")])
+        self.assertEqual(targets('Text\n<a href="https://example.org/a\nb\nc">t</a> and\n'
+                                 'https://example.org/d\n'),
+                         ["https://example.org/abc", "https://example.org/d"])
+
+    def test_value_does_not_continue_past_a_blank_line(self):
+        self.assertEqual(targets('<a href="https://example.org/a\n\nb">t</a>\n'),
+                         ["https://example.org/a"])
 
     def test_whitespace_between_the_equals_sign_and_the_quote(self):
         # No space after the closing quote, so a bare URL would run into the tag.
@@ -154,15 +201,68 @@ class InlineLinks(unittest.TestCase):
         self.assertEqual(targets("[a](x[b](y))\n"), ["x[b](y)"])
         self.assertEqual(targets("[a](x[b](y)\n"), ["y"])
 
+    def test_character_references_in_the_target_are_decoded_as_in_commonmark(self):
+        self.assertEqual(targets("[a](https://example.org/?a=1&amp;b=2)\n"),
+                         ["https://example.org/?a=1&b=2"])
+        self.assertEqual(targets("[a]: https://example.org/f&ouml;&#246;&#xF6;\n"),
+                         ["https://example.org/fööö"])
+        self.assertEqual(targets("[a](https://example.org/&#0;&#xD800;)\n"),
+                         ["https://example.org/��"])
+
+    def test_reference_without_a_semicolon_or_with_an_unknown_name_is_kept(self):
+        for url in ("https://example.org/?a=1&copy=2", "https://example.org/?a=1&bogus;",
+                    "https://example.org/&#12345678;"):
+            self.assertEqual(targets(f"[a]({url})\n"), [url])
+
 
 class RequestUrls(unittest.TestCase):
     def test_url_of_printable_ascii_is_requested_as_written(self):
         url = "https://example.org/a/b?q=<x>&r=%20#top"
         self.assertEqual(check_links.request_url(url), url)
 
+    def test_quotation_mark_and_backquote_are_requested_as_written(self):
+        url = 'https://example.org/a"b`c?q="x"#`'
+        self.assertEqual(check_links.request_url(url), url)
+
     def test_space_control_and_non_ascii_after_the_host_are_percent_encoded(self):
         self.assertEqual(check_links.request_url("https://example.org/a b?q=\x01é#c d"),
                          "https://example.org/a%20b?q=%01%C3%A9#c%20d")
+        self.assertEqual(check_links.request_url("https://example.org/x "),
+                         "https://example.org/x%C2%A0")
+
+    def test_empty_query_and_fragment_are_kept(self):
+        self.assertEqual(check_links.request_url("https://example.org/a b?"),
+                         "https://example.org/a%20b?")
+        self.assertEqual(check_links.request_url("https://example.org/a b?#"),
+                         "https://example.org/a%20b?#")
+
+
+class RemoteChecks(unittest.TestCase):
+    def test_encoded_url_is_requested(self):
+        requested = []
+
+        class Response:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def urlopen(request, timeout):
+            requested.append(request.full_url)
+            return Response()
+
+        with mock.patch.object(check_links.urllib.request, "urlopen", urlopen):
+            self.assertIsNone(check_links.check_remote("https://example.org/é"))
+        self.assertEqual(requested, ["https://example.org/%C3%A9"])
+
+    def test_host_with_a_space_is_reported_as_broken(self):
+        # http.client refuses the host before any connection is made.
+        problem = check_links.check_remote("https://exa mple.org/a b")
+        self.assertIsNotNone(problem)
+        self.assertTrue(problem.startswith("invalid URL"), problem)
 
 
 class LongLines(unittest.TestCase):
@@ -199,6 +299,14 @@ class LongLines(unittest.TestCase):
 
     def test_run_of_unclosed_attribute_values(self):
         self.assert_linear("", "='https://a<", ' <a href="https://example.org/x">',
+                           "https://example.org/x")
+
+    def test_run_of_letters_after_an_ampersand_in_an_attribute_value(self):
+        self.assert_linear('<a href="https://example.org/&', "a", '">t</a>',
+                           "https://example.org/&" + "a" * self.LENGTH)
+
+    def test_run_of_whitespace_references_before_the_scheme(self):
+        self.assert_linear('<a href="', "&#32;", 'https://example.org/x">t</a>',
                            "https://example.org/x")
 
 
