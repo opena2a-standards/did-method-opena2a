@@ -252,6 +252,56 @@ class HtmlAttributes(unittest.TestCase):
                          ["https://example.org/x", "https://example.org/y"])
 
 
+class CodeFences(unittest.TestCase):
+    def test_fence_indented_up_to_three_spaces_hides_its_lines(self):
+        for indent in ("", " ", "  ", "   "):
+            for fence in ("```", "~~~"):
+                text = f"{indent}{fence}\nhttps://example.org/a\n{indent}{fence}\n"
+                self.assertEqual(targets(text), [], text)
+
+    def test_line_indented_four_spaces_or_a_tab_is_not_a_fence(self):
+        # CommonMark reads it as an indented code block, which renders the
+        # fence as text, so the URL on the next line is a link.
+        for indent in ("    ", "     ", "\t", "  \t"):
+            for fence in ("```", "~~~"):
+                text = f"{indent}{fence}\nhttps://example.org/a\n"
+                self.assertEqual(check_links.link_targets(text),
+                                 [(2, "https://example.org/a")], text)
+
+    def test_lines_after_an_indented_fence_line_are_read(self):
+        text = "    ```\n\nSee https://example.org/a.\n\n[b](https://example.org/b)\n"
+        self.assertEqual(targets(text), ["https://example.org/a", "https://example.org/b"])
+
+    def test_indented_fence_line_does_not_close_a_fence(self):
+        text = "```\n    ```\nhttps://example.org/a\n```\nhttps://example.org/b\n"
+        self.assertEqual(targets(text), ["https://example.org/b"])
+
+    def test_heading_after_an_indented_fence_line_has_an_anchor(self):
+        self.assertEqual(check_links.heading_anchors("    ```\n# Title\n"), {"title"})
+        self.assertEqual(check_links.heading_anchors("```\n    ```\n# Code\n```\n# Title\n"),
+                         {"title"})
+
+    def test_fence_indentation_in_a_list_item_is_counted_from_the_line_start(self):
+        # CommonMark counts a fence's indentation from the list item's content,
+        # so each of these holds a fenced code block there. This script counts
+        # it from the start of the line, its documented simplification, so a
+        # fence line indented four or more spaces, or a tab, inside a list item
+        # is prose, and the URL between the fence lines is read as a link.
+        for text, line in (
+            ("- step\n\n    ```\n    https://example.org/x\n    ```\n", 4),
+            ("1. step\n\n    ```\n    https://example.org/x\n    ```\n", 4),
+            ("- a\n  - b\n\n      ```\n      https://example.org/x\n      ```\n", 5),
+            ("- step\n\n\t```\n\thttps://example.org/x\n\t```\n", 4),
+        ):
+            self.assertEqual(check_links.link_targets(text),
+                             [(line, "https://example.org/x")], text)
+        # An opening fence at three spaces and a closing one at four, inside a
+        # list item: only the first is a fence here, so the lines after the
+        # block are hidden, where CommonMark closes the block and reads them.
+        text = "1. a\n\n   ```\n   code\n    ```\n\nSee https://example.org/after\n"
+        self.assertEqual(check_links.link_targets(text), [])
+
+
 class InlineLinks(unittest.TestCase):
     def test_balanced_parenthesis_stays_in_the_target(self):
         self.assertEqual(targets("[Foo](https://example.org/wiki/Foo_(bar))\n"),
