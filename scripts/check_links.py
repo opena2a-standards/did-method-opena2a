@@ -4,9 +4,12 @@
 Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
-and inline code spans. A fence holds at most three spaces of indentation, as
-in CommonMark, so a ``` or ~~~ line indented by four or more spaces or by a
-tab is not a fence. The character references in an inline link or
+and inline code spans. A fence holds at most three spaces of indentation,
+counted from the start of the line, so a ``` or ~~~ line indented by four or
+more spaces or by a tab is not a fence. CommonMark counts those spaces from
+the content of an enclosing list item, so a fence indented further inside a
+list item is read here as prose: that count is this script's simplification.
+The character references in an inline link or
 reference definition target, such as `&amp;`, are decoded as CommonMark
 decodes them: a named one only with its `;`. A bare URL ends at whitespace or
 `<`, and trailing punctuation and an unbalanced `)` are not part of it, as on
@@ -71,9 +74,11 @@ INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 AUTOLINK = re.compile(r"<(https?://[^<>\s]+)>")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
-# A code fence, as in CommonMark, holds at most three spaces of indentation: a
-# ``` or ~~~ line indented four spaces or a tab is an indented code block,
-# which renders the fence as text, and the lines below it are read as usual.
+# A code fence holds at most three spaces of indentation, counted from the
+# start of the line: a ``` or ~~~ line indented four spaces or a tab is not a
+# fence, and the lines below it are read as usual. CommonMark counts those
+# spaces from the content of an enclosing list item; counting them from the
+# start of the line is this script's simplification, as the DEST limits are.
 FENCE = re.compile(r" {0,3}(?:```|~~~)")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
