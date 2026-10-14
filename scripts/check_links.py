@@ -4,34 +4,47 @@
 Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
-and inline code spans. A fence holds at most three spaces of indentation,
-counted from the start of the line, so a ``` or ~~~ line indented by four or
-more spaces or by a tab is not a fence. CommonMark counts those spaces from
-the content of an enclosing list item, so a fence indented further inside a
-list item is read here as prose: that count is this script's simplification.
-The character references in an inline link or
+and inline code spans. A fenced code block opens at a run of three or more
+backticks or tildes, and a run of backticks with a backtick after it on its
+line opens none. A fence holds at most three spaces of indentation,
+counted from the start of the line or, in a block quote, from where its text
+starts, after each `>` and the space after it when there is one, so a ``` or
+~~~ line indented by four or more spaces or by a tab is not a fence.
+CommonMark also counts those spaces from the content of an enclosing list
+item, so a fence indented further inside a list item, or after a list item
+marker on its line, is read here as prose: counting them from the start of
+the line there is this script's simplification. A block quote holds the lines
+after it that start with its `>`. A tab runs to the next multiple of four
+columns. The block closes at a run of the same character at least as long,
+indented in the same way, with only spaces or tabs after it, at a line that
+leaves a block quote the fence is in, or at the end of the file. A code span
+ends a bare URL before it. The character references in an inline link or
 reference definition target, such as `&amp;`, are decoded as CommonMark
 decodes them: a named one only with its `;`. A bare URL ends at whitespace or
 `<`, and trailing punctuation and an unbalanced `)` are not part of it, as on
 GitHub. A URL in a quoted HTML attribute value, as in `<a href="...">`, runs
 to the quote that closes the value, whitespace, `<` and line breaks included,
 up to a blank line, and may follow whitespace written as such or as a
-character reference. A value that runs onto a later line is read as one only
-when it is in a start tag, after a `<`, a tag name and whitespace or `/` with
-no `<` or `>` between them and the value, and its closing quote is followed by
-whitespace, `/>` or `>`; otherwise its URL is read as a bare URL, so an
-unclosed `x="https://...` in prose is not read into the line below. The line
+character reference. A value that holds a line break, before its URL or in
+it, is read as one only when it is in a start tag and its closing quote is
+followed by whitespace, `/>` or `>`; otherwise its URL is read as a bare URL,
+so an unclosed `x="https://...` in prose is not read into the line below. A
+start tag is a `<`, a tag name and whitespace or `/`, then an attribute part
+that a `>` closes, holding no other `<` or `>` outside its quoted attribute
+values; a `<` or `>` in a code span, autolink or inline link counts. The line
 break at the end of the last line before a blank line, a fenced code block or
 the end of the file does not count as that whitespace, so a quote that ends
-that line does not close a value whose URL starts on an earlier line. Its
-character references are decoded with html.unescape, except that a named
-reference without its `;` is kept as written when `=` or an ASCII letter or
+that line does not close a value whose URL starts on an earlier line. A
+value's character references are decoded with html.unescape, except that a
+named reference without its `;` is kept as written when `=` or an ASCII letter or
 digit follows it, as a browser keeps `&sect` in `&section=2`. Leading and
 trailing C0 controls and spaces are dropped and tabs and newlines are
-removed, as a browser does. An inline
+removed, as a browser does. A URL in prose is reported at the line its
+scheme is on. An inline
 link target may hold parentheses in balanced pairs, one level deep. HTML
 comments are not excluded. A relative target must name a file in this
-repository, and its `#fragment`, when present on a Markdown file, must match a
+repository, a path that leaves it is reported even when a file is there, and
+its `#fragment`, when present on a Markdown file, must match a
 heading there. An absolute http(s) target is requested anonymously, with each
 space, control or non-ASCII character after the host percent-encoded as a
 browser does and the rest sent as written, and must answer with a success
@@ -74,12 +87,6 @@ INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 AUTOLINK = re.compile(r"<(https?://[^<>\s]+)>")
 CODE_SPAN = re.compile(r"`+[^`]*`+")
-# A code fence holds at most three spaces of indentation, counted from the
-# start of the line: a ``` or ~~~ line indented four spaces or a tab is not a
-# fence, and the lines below it are read as usual. CommonMark counts those
-# spaces from the content of an enclosing list item; counting them from the
-# start of the line is this script's simplification, as the DEST limits are.
-FENCE = re.compile(r" {0,3}(?:```|~~~)")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
@@ -91,30 +98,52 @@ DESTINATION_REFERENCE = re.compile(
 # such or as a character reference: a C0 control or a space. `&#0;` is read as
 # U+FFFD, and `&Tab;` and `&NewLine;` are the only names in the HTML table for
 # one of these characters.
-LEADING = (r"(?:[\x00-\x20]|&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
-           r"|&#[xX]0*(?:20|1[0-9A-Fa-f]|[1-9A-Fa-f]);?|&(?:Tab|NewLine);)")
+LEADING_CHARACTER = (r"&#0*(?:3[0-2]|[12][0-9]|[1-9]);?"
+                     r"|&#[xX]0*(?:20|1[0-9A-Fa-f]|[1-9A-Fa-f]);?|&(?:Tab|NewLine);")
+LEADING = rf"(?:[\x00-\x20]|{LEADING_CHARACTER})"
+# The same, without a line break as written.
+LEADING_ON_LINE = rf"(?:[\x00-\x09\x0b-\x20]|{LEADING_CHARACTER})"
 # A URL outside the link forms above. One in a quoted HTML attribute value
 # (href="...", src='...') runs to the quote that closes the value, so the rest
-# of the tag is not read into it; any other is a bare URL. A value that runs
-# onto a later line, group 3, is read only when its closing quote is followed
-# by whitespace, `/>` or `>`, as in a tag, and prose_urls keeps it only when
-# its `=` is in the attribute part of a start tag (START_TAG), so an unclosed
-# value in prose does not take a later quote, such as the one in "the users'
-# guide" or the opening quote of "hi", as its own. A block ends at a blank
-# line, a fenced code block or the end of the file, and its lines are joined
-# without a line break after the last, so a quote that ends its last line does
-# not close a value whose URL starts on an earlier line. A value is read only
-# to the first quote of its own kind, and the quote that opens the next value
-# of that kind is one, so only the last value of each kind can be read to the
-# end of its block of lines.
-URL = re.compile(rf"""=\s*(["'])({LEADING}*https?://(?:(?:(?!\1)[^\n])*(?=\1)"""
-                 rf"""|((?:(?!\1).)*(?=\1(?:\s|/?>)))))\1|https?://[^\s<]+""",
-                 re.DOTALL)
+# of the tag is not read into it; any other is a bare URL. Group 2 is the URL
+# of a value on one line. Group 3 is the URL of a value that holds a line
+# break, before its scheme or after it: it is read only when its closing quote
+# is followed by whitespace, `/>` or `>`, as in a tag, and prose_urls keeps it
+# only when its `=` is in the attribute part of a start tag (START_TAG), so an
+# unclosed value in prose does not take a later quote, such as the one in "the
+# users' guide" or the opening quote of "hi", as its own. A block ends at a
+# blank line, a fenced code block or the end of the file, and its lines are
+# joined without a line break after the last, so a quote that ends its last
+# line does not close a value whose URL starts on an earlier line. A value is
+# read only to the first quote of its own kind, and the quote that opens the
+# next value of that kind is one, so only the last value of each kind can be
+# read to the end of its block of lines.
+URL = re.compile(rf"""=\s*(["'])(?:{LEADING_ON_LINE}*(https?://(?:(?!\1)[^\n])*)(?=\1)"""
+                 rf"""|{LEADING}*(https?://(?:(?!\1).)*)(?=\1(?:\s|/?>)))\1"""
+                 rf"""|https?://[^\s<]+""", re.DOTALL)
 # A start tag: `<`, an ASCII letter and the rest of the tag name, whitespace
 # or `/`, then the part that can hold an attribute, group 1, up to the next `<`
-# or `>`. A tag name here holds no `<`, so a run of `<` is read in linear time,
-# and an attribute value before this one that holds a `<` or `>` ends the part.
-START_TAG = re.compile(r"<[A-Za-z][^\s/<>]*[\s/]([^<>]*)")
+# or `>` that is not in a quoted attribute value, and group 2, the `>` that
+# closes the tag when that is the character the part ends at. A tag name here
+# holds no `<`, so a run of `<` is read in linear time. A quoted value is read
+# to the first quote of its kind and its `=` is read once, so no character of
+# the part is read twice unless a value has no closing quote, and only the
+# last value of each kind in the text can have none.
+START_TAG = re.compile(r"""<[A-Za-z][^\s/<>]*[\s/]((?:[^<>=]|=\s*(?:"[^"]*"|'[^']*')?)*)(>?)""")
+# A fence of a fenced code block, read from the start of its line or, in a
+# block quote, from after the markers that hold it, on a line whose tabs are
+# expanded: at most three spaces, then a run of backticks with no backtick
+# after it on the line, or a run of tildes. A closing fence has only spaces
+# after it. A ``` or ~~~ line indented four spaces or a tab is not a fence,
+# and the lines below it are read as usual. CommonMark also counts those
+# spaces from the content of an enclosing list item; counting them from the
+# start of the line there is this script's simplification, as the DEST limits
+# are.
+OPENING_FENCE = re.compile(r" {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$")
+CLOSING_FENCE = re.compile(r" {0,3}(`{3,}|~{3,}) *$")
+# A block quote marker, as CommonMark reads one where a line or the text of a
+# block quote starts.
+QUOTE_MARKER = re.compile(r" {0,3}> ?")
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
 # within it.
@@ -207,13 +236,63 @@ def request_url(url: str) -> str:
     return url[:start] + UNSENDABLE.sub(lambda m: urllib.parse.quote(m.group()), url[start:])
 
 
+def blank(m: re.Match) -> str:
+    """Spaces in place of a span, so the rest of its line keeps its place."""
+    return " " * len(m.group())
+
+
+def code_block_lines(lines: list) -> set:
+    """The numbers of the lines that open, hold or close a fenced code block,
+    read as the module docstring says."""
+    code = set()
+    # How many block quotes are open after the last line read, and the
+    # character and length of the fence that opened the block the line is in.
+    depth = 0
+    fence = None
+    for n, line in enumerate(lines, 1):
+        line = line.expandtabs(4)
+        # The block quotes the line stays in, and `pos`, where its text starts
+        # in the last of them.
+        pos = held = 0
+        while held < depth:
+            m = QUOTE_MARKER.match(line, pos)
+            if not m:
+                break
+            pos = m.end()
+            held += 1
+        if fence:
+            if held == depth:
+                code.add(n)
+                m = CLOSING_FENCE.match(line, pos)
+                if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1]:
+                    fence = None
+                continue
+            # The line leaves a block quote the fence is in, which closes the
+            # block, and is read as any other line.
+            fence = None
+        depth = held
+        # The block quotes that open on the line, then a fence.
+        m = QUOTE_MARKER.match(line, pos)
+        while m:
+            depth += 1
+            pos = m.end()
+            m = QUOTE_MARKER.match(line, pos)
+        m = OPENING_FENCE.match(line, pos)
+        if m:
+            run = m.group(1) or m.group(2)
+            fence = (run[0], len(run))
+            code.add(n)
+    return code
+
+
 def prose_urls(block: list) -> list:
     """Return (line number, target) for every URL in a block of prose, given
-    as (line number, prose) pairs. A quoted attribute value in a start tag may
-    continue onto the following lines of the block."""
-    text = "\n".join(prose for _, prose in block)
+    as (line number, line, prose) triples, where the prose is the line with
+    its code spans and link forms blanked out. A quoted attribute value in a
+    start tag may continue onto the following lines of the block."""
+    text = "\n".join(prose for _, _, prose in block)
     starts = [0]
-    for _, prose in block[:-1]:
+    for _, _, prose in block[:-1]:
         starts.append(starts[-1] + len(prose) + 1)
     tags = None
     found = []
@@ -221,21 +300,28 @@ def prose_urls(block: list) -> list:
     while m:
         if m.group(3) is not None:
             if tags is None:
-                tags = [t.span(1) for t in START_TAG.finditer(text)]
+                # The prose with the `<` and `>` of its code spans and link
+                # forms put back, which end an attribute part too.
+                marks = "\n".join("".join(c if c in "<>" else p for c, p in zip(line, prose))
+                                  for _, line, prose in block)
+                tags = [t.span(1) for t in START_TAG.finditer(marks) if t.group(2)]
             # The last attribute part that starts at or before the `=`.
             i = bisect.bisect_right(tags, (m.start(), len(text))) - 1
             if i < 0 or tags[i][1] <= m.start():
                 # Outside a start tag the quote opens no value, and the search
-                # goes on after it. No URL starts in what LEADING matches
-                # between the quote and the scheme, so the first it can find
-                # is the bare URL at the scheme. When whitespace or `<` follows
+                # goes on at the scheme, where the first URL it can find is
+                # the bare URL at the scheme. When whitespace or `<` follows
                 # the scheme no bare URL starts there, and it finds a later
                 # URL, which may be another value outside a start tag, or
                 # none: the loop tests what it found.
-                m = URL.search(text, m.start(2))
+                m = URL.search(text, m.start(3))
                 continue
-        n = block[bisect.bisect_right(starts, m.start()) - 1][0]
-        found.append((n, attribute_url(m.group(2)) if m.group(1) else bare_url(m.group(0))))
+        if m.group(1) is None:
+            start, target = m.start(), bare_url(m.group())
+        else:
+            group = 2 if m.group(2) is not None else 3
+            start, target = m.start(group), attribute_url(m.group(group))
+        found.append((block[bisect.bisect_right(starts, start) - 1][0], target))
         m = URL.search(text, m.end())
     return found
 
@@ -244,26 +330,25 @@ def link_targets(text: str) -> list:
     """Return (line number, target) for every followable link in the text."""
     found = []
     block = []
-    in_fence = False
-    for n, line in enumerate(text.splitlines(), 1):
-        fence = bool(FENCE.match(line))
-        if fence or in_fence or not line.strip(" \t"):
-            # A fence, a line inside one or a blank line ends a block of prose.
+    lines = text.splitlines()
+    code = code_block_lines(lines)
+    for n, line in enumerate(lines, 1):
+        if n in code or not line.strip(" \t"):
+            # A line of a fenced code block or a blank line ends a block of
+            # prose.
             found += prose_urls(block)
             block = []
-            if fence:
-                in_fence = not in_fence
             continue
-        line = CODE_SPAN.sub("", line)
+        unspanned = CODE_SPAN.sub(blank, line)
         for pattern in (INLINE, REFDEF):
-            for m in pattern.finditer(line):
+            for m in pattern.finditer(unspanned):
                 found.append((n, unescape_destination(m.group(1))))
-        for m in AUTOLINK.finditer(line):
+        for m in AUTOLINK.finditer(unspanned):
             found.append((n, m.group(1)))
-        prose = line
+        prose = unspanned
         for pattern in (INLINE_SPAN, REFDEF, AUTOLINK):
-            prose = pattern.sub(" ", prose)
-        block.append((n, prose))
+            prose = pattern.sub(blank, prose)
+        block.append((n, line, prose))
     found += prose_urls(block)
     # A stable sort keeps the link forms of a line before its URLs in prose.
     return sorted(found, key=lambda target: target[0])
@@ -273,12 +358,10 @@ def heading_anchors(text: str) -> set:
     """GitHub-style anchors for the headings of a Markdown file."""
     anchors = set()
     seen = {}
-    in_fence = False
-    for line in text.splitlines():
-        if FENCE.match(line):
-            in_fence = not in_fence
-            continue
-        m = None if in_fence else re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", line)
+    lines = text.splitlines()
+    code = code_block_lines(lines)
+    for n, line in enumerate(lines, 1):
+        m = None if n in code else re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", line)
         if not m:
             continue
         slug = re.sub(r"[^\w\- ]", "", m.group(1).lower()).replace(" ", "-")
@@ -291,6 +374,8 @@ def heading_anchors(text: str) -> set:
 def check_relative(doc: Path, target: str) -> str | None:
     path, _, fragment = target.partition("#")
     file = doc if not path else (doc.parent / path).resolve()
+    if file != ROOT and ROOT not in file.parents:
+        return "outside this repository"
     if not file.exists():
         return "no such file in this repository"
     if fragment and file.suffix == ".md":

@@ -19,6 +19,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `vectors/`, so a percent-encoded DID there fails locally as it fails the
   family spec-drift check `did-example-forms`.
 
+### Changed
+
+- **README shortened.** The README keeps the specification link, the use
+  cases with their limits, resolution, examples and conformance, and links
+  the rest. Its reference text moved, as written: the Trust model section to
+  `docs/trust-model.md`, the Status section to `docs/status.md`, the
+  Contributing section to `CONTRIBUTING.md`, the full use cases with each
+  conformance suite's fixture count to `docs/use-cases.md`, and the full
+  notes on each example to `docs/examples.md`. The References list joined a
+  new Documentation list. Section 6.7 links `docs/trust-model.md` for the
+  side-by-side comparison of trust anchors.
+
 ### Fixed
 
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
@@ -70,12 +82,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   scheme, gave the target `https://example.org/x">text`; the whitespace is now
   dropped, as the module docstring said. A value that continues onto the next
   line was cut at the line break; it now runs to its closing quote, up to a
-  blank line, with the line break removed, when the value is in a start tag,
-  after a `<`, a tag name and whitespace or `/` with no `<` or `>` between
-  them and the value, and that quote is followed by whitespace, `/>` or `>`;
-  otherwise its URL is read as a bare URL, as before, so an unclosed
-  `x="https://example.org/a` in prose does not take the opening quote of
-  `"hi"`, or the quote in `a 12" ruler`, on the next line as its own. The line
+  blank line, with the line break removed, when the value is in a start tag
+  and that quote is followed by whitespace, `/>` or `>`. A start tag is a
+  `<`, a tag name and whitespace or `/`, then an attribute part that a `>`
+  closes, with no other `<` or `>` in it outside a quoted attribute value; one
+  in a code span, autolink or inline link counts. So
+  `<a title=">" href="https://example.org/a` followed by `b">` on the next
+  line gives `https://example.org/ab`, as a browser reads it. Otherwise the
+  value's URL is read as a bare URL, at the line its scheme is on, as before,
+  so an unclosed `x="https://example.org/a` in prose, or one after a `<` and
+  a word that no `>` closes, does not take the opening quote of `"hi"`, or
+  the quote in `a 12" ruler`, on the next line as its own, and `x="` followed
+  by `https://example.org/a b" c` on the next line gives
+  `https://example.org/a` at that line. The line
   break at the end of the last line before a blank line, a fenced code block
   or the end of the file does not count as that whitespace, so a quote that
   ends that line does not close a value whose URL starts on an earlier line.
@@ -102,6 +121,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   fence there and prose here: the count from the start of the line is this
   script's simplification. The README and the spec hold no such line, so the
   targets read from them are unchanged.
+- **`scripts/check_links.py` closes a fenced code block at a matching fence
+  and reads one in a block quote.** A fence was any line that started with
+  three backticks or tildes after at most three spaces, and the next such line
+  closed it. A closing fence is now a run of the same character at least as
+  long, with only spaces or tabs after it, so `~~~` no longer closes a block
+  that `~~~~` opened. A run of backticks with a backtick after it on its line
+  opens no block, so a line holding the code span `` ``` a ``` `` no longer
+  hides the lines after it. A fence after block quote markers opens a block,
+  with its three spaces of indentation counted from after those markers, and
+  the block also closes where the block quote ends: a URL in such a block was
+  followed. In a list item the count is still from the start of the line, so
+  a fence after a list item marker on its line is prose, as one indented four
+  spaces under an item is. Headings in a fenced code block are read by the
+  same rule. A code span now ends a bare URL before it, as on GitHub. The
+  targets and headings read from the README and the spec are unchanged.
+- **`scripts/check_links.py` reports a relative target outside the
+  repository.** A target such as `../outside.md` passed when a file of that
+  name was there, next to the clone; a target whose resolved path is outside
+  the repository is now reported, as the module docstring said.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run
