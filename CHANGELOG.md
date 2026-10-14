@@ -19,6 +19,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   `vectors/`, so a percent-encoded DID there fails locally as it fails the
   family spec-drift check `did-example-forms`.
 
+### Changed
+
+- **README shortened.** The README keeps the specification link, the use
+  cases with their limits, resolution, examples and conformance, and links
+  the rest. Its reference text moved, as written: the Trust model section to
+  `docs/trust-model.md`, the Status section to `docs/status.md`, the
+  Contributing section to `CONTRIBUTING.md`, the full use cases with each
+  conformance suite's fixture count to `docs/use-cases.md`, and the full
+  notes on each example to `docs/examples.md`. The References list joined a
+  new Documentation list. Section 6.7 links `docs/trust-model.md` for the
+  side-by-side comparison of trust anchors.
+
 ### Fixed
 
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read

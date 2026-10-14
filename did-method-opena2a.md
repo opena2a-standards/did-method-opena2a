@@ -405,7 +405,7 @@ This specification does not claim that `did:opena2a` is a fully decentralized DI
 
 Each anchor offers a different operational guarantee. Self-certifying methods minimize the resolution surface (there is nothing to resolve) and place all trust in the key holder. Ledger-anchored methods externalize trust in any one operator at the cost of depending on ledger consensus and any verifier-side log auditor. Registry-mediated methods return a richer resolution payload (trust score, signed proofs, scan history, badge endpoints) at the cost of trusting a specific registry deployment.
 
-Implementations comparing DID methods for agent-identity use cases SHOULD pick the anchor that matches the operational guarantee they need, not the anchor that scores highest on any single axis (decentralization, resolution latency, payload richness, operator independence). A side-by-side comparison of these axes is maintained in this method's [README](https://github.com/opena2a-standards/did-method-opena2a#trust-model). Availability risk specifically for this method is covered in Section 6.6.
+Implementations comparing DID methods for agent-identity use cases SHOULD pick the anchor that matches the operational guarantee they need, not the anchor that scores highest on any single axis (decentralization, resolution latency, payload richness, operator independence). A side-by-side comparison of these axes is maintained in this method's repository, in [`docs/trust-model.md`](./docs/trust-model.md). Availability risk specifically for this method is covered in Section 6.6.
 
 ## 7. Privacy considerations
 
