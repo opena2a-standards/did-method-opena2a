@@ -33,6 +33,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **ATX fixture count in `docs/use-cases.md`.** The use cases gave
+  `atx-conformance` as 23 fixtures; its `MANIFEST.sha256` on `main` lists 25,
+  and each of the 25 carries a `did:opena2a` identifier.
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
   the README, the specification, the CHANGELOG and `examples/*.json` (9 files),
   while the family spec-drift check `did-example-forms` reads every Markdown and
@@ -143,16 +146,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   CommonMark, and a fenced code block that is still open where its list item
   ends is closed there. A list item ends at the first line that is not blank,
   is indented less than the item's content and does not continue the item's
-  paragraph. Block quotes and list items are read inside each other as
+  paragraph, and an item with nothing after its marker also ends at a blank
+  line right below the marker. Block quotes and list items are read inside each other as
   CommonMark reads them, and a line that continues a paragraph keeps open each
   block quote and list item that paragraph is in. HTML blocks are not
   followed, which is this script's simplification: a line that starts with `<`
-  is read as a line of a paragraph. The README and the spec hold no fence in a
+  is read as a line of a paragraph. A line indented to the content of 100,000
+  nested list items took 2.65 s to read, fourfold per doubling, because the
+  run of spaces was scanned again for each item; it is now scanned once, and
+  the line is read in 0.08 s. The README and the spec hold no fence in a
   list item, and the targets and anchors read from them are unchanged.
+- **`scripts/check_links.py` reads a `===` line below link reference
+  definitions as a line of their paragraph.** A line of `=` or `-` right below
+  a paragraph line was read as a setext heading underline even when that
+  paragraph held only link reference definitions, where CommonMark reads no
+  heading and a `===` line continues the paragraph. Below `[a]: /u` and
+  `===`, a `` 2. ``` `` line was then read as a list item that opens a fenced
+  code block, and `https://example.org/x` on the line below it was not
+  checked; CommonMark reads both lines as more of the paragraph, as `2.` cannot
+  interrupt one. Below a paragraph of definitions, each on a line of its own,
+  a line of `=`, such as `===`, and the line `--` now continue the paragraph,
+  and a `---` line is still read as a thematic break. A definition written
+  across lines is not read as one there, which is this script's
+  simplification. The targets, anchors and fenced code block lines read from
+  the README and the spec are unchanged.
 - **`scripts/check_links.py` reports a relative target outside the
   repository.** A target such as `../outside.md` passed when a file of that
   name was there, next to the clone; a target whose resolved path is outside
   the repository is now reported, as the module docstring said.
+- **`scripts/check_links.py` on a connection closed before a reply or a reply
+  that is not HTTP.** urllib does not wrap the `http.client.RemoteDisconnected`
+  and `http.client.BadStatusLine` it raises while reading a response, so either
+  ended the run with a traceback, before any link was reported. The request is
+  now retried once, as a failed request is, and the URL is then reported as
+  broken, as in `request failed: BadStatusLine: garbage`, with the other links'
+  results and exit 1.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run

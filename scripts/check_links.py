@@ -11,16 +11,27 @@ them, and a fence holds at most three spaces of indentation, counted from
 where the text of the block quote or list item it is in starts: after each
 `>` and the space after it when there is one, and at the content of a list
 item, so under `- step` a fence indented by two to five spaces is one. A ```
-or ~~~ line indented by four or more spaces or by a tab from there is not a
-fence. A tab runs to the next multiple of four columns. A block quote holds
+or ~~~ line indented by four or more columns from there is not a fence. A tab
+runs to the next multiple of four columns, counted from the start of the
+line, so under `- step` a tab, or two spaces and a tab, is two columns of
+indentation, and two tabs are six. A block quote holds
 the lines that start with its `>`, and a list item the blank lines and the
 lines indented to its content, except that a blank line right below a marker
 with nothing after it ends that item. A line that is not blank and opens no
 heading, thematic break, fence, block quote or list item continues a
 paragraph open above it, so it is held by each block quote and list item that
-paragraph is in. Right below a paragraph line, a list marker opens an item
-only with text after it, and a numbered one only as number 1. The block closes
-at a run of the same character at least as long, indented in the same way,
+paragraph is in. Right below a paragraph line, a list marker that is in the
+same block quotes and list items as that paragraph opens an item only with
+text after it, and a numbered one only as number 1; any other marker there
+opens one, such as a `2.` that starts the line below `- a`, which is not
+indented to that item's content, or the `2.` in `- 2. a`, which is in the
+item that `-` opens. Right below a paragraph line, a line of
+`=` or `-` underlines a heading, except below a paragraph that holds only link
+reference definitions: that line is then read as any other, so `===`
+continues the paragraph. A definition is read as one there only when it is on
+a line of its own, which is this script's simplification: CommonMark also
+reads one written across lines. A fenced code block closes at a run of the
+same character at least as long, indented in the same way,
 with only spaces or tabs after it, at a line that leaves a block quote or list
 item the fence is in, or at the end of the file. HTML blocks are not followed,
 which is this script's simplification: a line that starts with `<` is read as
@@ -141,9 +152,9 @@ START_TAG = re.compile(r"""<[A-Za-z][^\s/<>]*[\s/]((?:[^<>=]|=\s*(?:"[^"]*"|'[^'
 # list item that holds it starts, or from the start of its line outside one,
 # on a line whose tabs are expanded: at most three spaces, then a run of
 # backticks with no backtick after it on the line, or a run of tildes. A
-# closing fence has only spaces after it. A ``` or ~~~ line indented four
-# spaces or a tab from there is not a fence, and the lines below it are read
-# as usual.
+# closing fence has only spaces after it. A ``` or ~~~ line indented four or
+# more columns from there is not a fence, and the lines below it are read as
+# usual.
 OPENING_FENCE = re.compile(r" {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$")
 CLOSING_FENCE = re.compile(r" {0,3}(`{3,}|~{3,}) *$")
 # A block quote marker, as CommonMark reads one where a line or the text of a
@@ -158,6 +169,14 @@ MARKER = re.compile(r"(?:[-+*]|([0-9]{1,9})[.)])(?= |$)")
 # one.
 ATX = re.compile(r"#{1,6}(?= |$)")
 SETEXT = re.compile(r"(?:=+|-+)$")
+# A link reference definition on a line of its own, read where its text
+# starts: a label, group 1, that holds a `[` or `]` only escaped and is not
+# all spaces; `:`; a destination, group 2, in `<` and `>` or without spaces or
+# controls; and a title, after a space, in quotes or parentheses.
+DEFINITION = re.compile(r"""\[(?! *\])((?:\\.|[^\\\[\]])+)\]: *"""
+                        r"""(<(?:\\.|[^\\<>])*>|[^<\x00-\x20\x7f][^\x00-\x20\x7f]*)"""
+                        r"""(?: +(?:"(?:\\.|[^\\"])*"|'(?:\\.|[^\\'])*'|\((?:\\.|[^\\()])*\)))? *""")
+ESCAPE = re.compile(r"\\.")
 SPACES = re.compile(r" *")
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
@@ -256,6 +275,23 @@ def blank(m: re.Match) -> str:
     return " " * len(m.group())
 
 
+def is_definition(line: str, start: int) -> bool:
+    """Whether the line, from `start`, is one whole link reference definition,
+    as CommonMark reads one: a label of at most 999 characters, and a
+    destination outside `<` and `>` whose unescaped parentheses are in
+    balanced pairs."""
+    m = DEFINITION.fullmatch(line, start)
+    if not m or len(m.group(1)) > 999:
+        return False
+    depth = 0
+    if not m.group(2).startswith("<"):
+        for c in ESCAPE.sub("", m.group(2)):
+            depth += (c == "(") - (c == ")")
+            if depth < 0:
+                return False
+    return depth == 0
+
+
 def code_block_lines(lines: list) -> set:
     """The numbers of the lines that open, hold or close a fenced code block,
     read as the module docstring says: block quotes and list items are
@@ -275,6 +311,9 @@ def code_block_lines(lines: list) -> set:
     # paragraph, a fenced code block given as the character and length of
     # its fence, or None for any other.
     leaf = None
+    # The paragraph holds only link reference definitions, each on a line of
+    # its own: CommonMark reads no setext heading there.
+    definitions = False
     empty = False  # The innermost item is a marker with nothing after it.
 
     def close(held: int) -> None:
@@ -289,6 +328,9 @@ def code_block_lines(lines: list) -> set:
         # The containers the line stays in, and `pos`, where its text starts
         # in the last of them.
         pos = held = 0
+        # Where the run of spaces last scanned ends. `pos` only moves on, so
+        # while it is inside that run the run is not scanned again.
+        run_end = -1
         while held < len(containers):
             width = containers[held]
             if width is None:
@@ -303,10 +345,12 @@ def code_block_lines(lines: list) -> set:
                 held = (quotes[i] if i < len(quotes)
                         else len(containers) - (1 if was_empty else 0))
                 break
-            elif SPACES.match(line, pos).end() - pos >= width:
-                pos += width
             else:
-                break
+                if run_end < pos:
+                    run_end = SPACES.match(line, pos).end()
+                if run_end - pos < width:
+                    break
+                pos += width
             held += 1
         if isinstance(leaf, tuple) and held == len(containers):
             # A line of the block, or the fence that closes it.
@@ -340,6 +384,8 @@ def code_block_lines(lines: list) -> set:
                 if not paragraph:
                     close(held)
                     leaf = None
+                else:
+                    definitions = definitions and is_definition(line, start)
                 break
             if line[start] == ">":
                 close(held)
@@ -361,14 +407,17 @@ def code_block_lines(lines: list) -> set:
                 leaf = (run[0], len(run))
                 code.add(n)
                 break
-            if (ATX.match(line, start) or below and SETEXT.match(line, start)
+            # Below definitions alone, a setext underline is read as any
+            # other line.
+            if (ATX.match(line, start) or below and not definitions and SETEXT.match(line, start)
                     or start >= tail and line.count(last, start) >= 3):
                 close(held)
                 leaf = None
                 break
             m = MARKER.match(line, start)
-            # Right below a paragraph line, a marker opens an item only with
-            # text after it, and a numbered one only as number 1.
+            # Right below a paragraph line in the same containers (`below`), a
+            # marker opens an item only with text after it, and a numbered one
+            # only as number 1.
             if m and not (below and (m.end() == len(line) or int(m.group(1) or 1) != 1)):
                 close(held)
                 empty = m.end() == len(line)
@@ -389,6 +438,8 @@ def code_block_lines(lines: list) -> set:
             if not paragraph:
                 close(held)
                 leaf = "paragraph"
+                definitions = True
+            definitions = definitions and is_definition(line, start)
             break
     return code
 
@@ -509,6 +560,14 @@ def check_remote(url: str) -> str | None:
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 1:
                 return f"request failed: {getattr(e, 'reason', e)}"
+        except (http.client.HTTPException, ConnectionError) as e:
+            # Raised while the response is read, which urllib does not wrap in
+            # URLError: a connection closed before a reply, or a reply whose
+            # status line is not HTTP. That line is in the message with its
+            # line break, so whitespace is collapsed to keep the report on
+            # one line.
+            if attempt == 1:
+                return f"request failed: {type(e).__name__}: {' '.join(str(e).split())}"
         time.sleep(2)
     return None
 

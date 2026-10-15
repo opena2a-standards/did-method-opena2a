@@ -5,8 +5,10 @@ Run from the repository root: python3 -m unittest discover -s scripts
 """
 from __future__ import annotations
 
+import socket
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -533,6 +535,36 @@ class CodeFences(unittest.TestCase):
         text = "Steps\n=== x\n2.  a\n\n    ```\n    https://example.org/x\n"
         self.assertEqual(check_links.link_targets(text), [(6, "https://example.org/x")])
 
+    def test_setext_underline_below_link_reference_definitions_continues_their_paragraph(self):
+        # A paragraph that holds only link reference definitions has no
+        # heading to underline, so `===` is more of it, and so is `2.` below.
+        text = "[a]: /u\n===\n2. ```\n   https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text),
+                         [(1, "/u"), (4, "https://example.org/x")])
+        for first in ("[a]: /u\n[b]: <v> \"t\"\n", "   [a]:/u   'x y'\n", "[a]: <>\n",
+                      "[a\\]b]: /u((x))\n", "[a]: /u\\(x (t)\n"):
+            text = f"{first}===\n2.  a\n\n    ```\n    https://example.org/x\n"
+            self.assertIn((first.count("\n") + 5, "https://example.org/x"),
+                          check_links.link_targets(text), text)
+        # In a block quote and in a list item.
+        for text in ("> [a]: /u\n> ===\n> 2. ```\n>    https://example.org/x\n",
+                     "- [a]: /u\n  ===\n  2. ```\n     https://example.org/x\n"):
+            self.assertIn((4, "https://example.org/x"), check_links.link_targets(text), text)
+        # Below a paragraph that holds more than definitions, or a line that
+        # is not one, `===` underlines a heading, and below one of `-` a
+        # thematic break: `2.` then opens an item that holds the fence.
+        for first in ("[a]: /u\ntext\n===\n", "[a]: /u x\n===\n", "[a]: /u \"t\" x\n===\n",
+                      "[a]: /u(x\n===\n", "[a]: /u)x\n===\n", "[ ]: /u\n===\n",
+                      "[a]: <u\\>\n===\n", "[a]: /u\n---\n"):
+            text = f"{first}2. ```\n   https://example.org/x\n"
+            self.assertNotIn("https://example.org/x", targets(text), text)
+        # A line of one `=`, and `--`, which is no thematic break, continue
+        # the paragraph too.
+        for line in ("=", "--"):
+            text = f"[a]: /u\n{line}\n2. ```\n   https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(1, "/u"), (4, "https://example.org/x")], text)
+
     def test_thematic_break_is_not_a_list_item(self):
         for rule in ("- - -", "* * *", "-  - -", "* * * *"):
             text = f"{rule}\n\n    ```\n    https://example.org/x\n"
@@ -570,6 +602,49 @@ class CodeFences(unittest.TestCase):
         # item still holds the fence.
         text = "10. a\n<div>\n\n    ```\n    https://example.org/x\n    ```\n"
         self.assertEqual(check_links.link_targets(text), [])
+
+
+class ListItemDocumentation(unittest.TestCase):
+    """The module docstring, which --help prints, and the unreleased CHANGELOG
+    entry state each list item rule with the conditions the script applies."""
+
+    def setUp(self):
+        self.doc = " ".join(check_links.__doc__.split())
+        changelog = (SCRIPTS.parent / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.changelog = " ".join(changelog.split("\n## [", 2)[1].split())
+
+    def test_fence_indentation_is_stated_in_columns(self):
+        # Under `- step` a tab reaches column 4, two columns past the item's
+        # content, so a fence indented by it is one; two tabs reach column 8.
+        for indent in ("\t", "  \t"):
+            text = f"- step\n\n{indent}~~~\n{indent}https://example.org/x\n{indent}~~~\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+        text = "- step\n\n\t\t~~~\n\t\thttps://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        self.assertNotIn("or by a tab from there", self.doc)
+        self.assertIn("line indented by four or more columns from there is not a fence", self.doc)
+        self.assertIn("under `- step` a tab, or two spaces and a tab, is two columns of "
+                      "indentation, and two tabs are six", self.doc)
+
+    def test_marker_below_a_paragraph_is_limited_in_the_same_containers_only(self):
+        # `2.` opens an item below the paragraph of `- a`, which it is not
+        # in, and in the item that `-` opens on its line.
+        for text in (
+            "- a\n2.  b\n\n       ```\n       https://example.org/x\n       ```\n",
+            "Steps:\n- 2. a\n\n        ```\n        https://example.org/x\n        ```\n",
+        ):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        self.assertIn("a list marker that is in the same block quotes and list items as "
+                      "that paragraph opens an item only with text after it, and a numbered "
+                      "one only as number 1", self.doc)
+
+    def test_item_with_nothing_after_its_marker_is_stated_to_end_at_a_blank_line(self):
+        text = "1.\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        self.assertIn("a blank line right below a marker with nothing after it ends that item",
+                      self.doc)
+        self.assertIn("an item with nothing after its marker also ends at a blank line right "
+                      "below the marker", self.changelog)
 
 
 class InlineLinks(unittest.TestCase):
@@ -803,6 +878,52 @@ class RemoteChecks(unittest.TestCase):
         self.assertIsNotNone(problem)
         self.assertTrue(problem.startswith("invalid URL"), problem)
 
+    def serve(self, reply: bytes) -> tuple:
+        """A local server that reads two requests, sends reply to each and
+        closes the connection; returns its URL and the requests it read."""
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        server.settimeout(10)
+        requests = []
+
+        def answer():
+            for _ in range(2):
+                try:
+                    conn, _ = server.accept()
+                except OSError:
+                    return
+                with conn:
+                    requests.append(conn.recv(65536))
+                    if reply:
+                        conn.sendall(reply)
+
+        thread = threading.Thread(target=answer, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 10)
+        self.addCleanup(server.close)
+        return f"http://127.0.0.1:{server.getsockname()[1]}/x", requests
+
+    def test_connection_closed_without_a_reply_is_reported_as_broken(self):
+        url, requests = self.serve(b"")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        self.assertEqual(
+            problem,
+            "request failed: RemoteDisconnected: "
+            "Remote end closed connection without response",
+        )
+        # Retried once, as a failed request is.
+        self.assertEqual(len(requests), 2)
+
+    def test_reply_that_is_not_http_is_reported_as_broken(self):
+        url, requests = self.serve(b"garbage\r\n")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        # The status line's line break is not in the one-line report.
+        self.assertEqual(problem, "request failed: BadStatusLine: garbage")
+        self.assertEqual(len(requests), 2)
+
 
 class LongLines(unittest.TestCase):
     """A line built to make a backtracking pattern retry from every position."""
@@ -887,6 +1008,15 @@ class LongLines(unittest.TestCase):
         self.assert_linear("", "* ", "[a](b)", "b")
         self.assert_linear("", "* ", "+ * * [a](b) * *", "b")
 
+    def test_run_of_characters_in_a_link_reference_definition(self):
+        # Each is read as the first line of a paragraph, which may hold only
+        # definitions.
+        self.assert_linear("[a]: /", "(", "\n===\n2. https://example.org/x",
+                           "https://example.org/x")
+        self.assert_linear("[", "\\]", " https://example.org/x", "https://example.org/x")
+        self.assert_linear('[a]: /u "', '\\"', " https://example.org/x",
+                           "https://example.org/x")
+
     def test_run_of_list_items(self):
         self.assert_linear("", "- a\n", "[a](b)", "b")
         self.assert_linear("", "- a\nb\n", "[a](b)", "b")
@@ -896,6 +1026,12 @@ class LongLines(unittest.TestCase):
         self.assert_linear("- " * (self.LENGTH // 4) + "a\n", "\n", "[a](b)", "b")
         self.assert_linear("> - " * (self.LENGTH // 8) + "a\n", ">\n", "[a](b)", "b")
         self.assert_linear("- > " * (self.LENGTH // 8) + "a\n", "  >\n", "[a](b)", "b")
+
+    def test_line_indented_under_a_run_of_list_items(self):
+        # The line stays in every item. The head holds the first half of its
+        # indentation.
+        self.assert_linear("- " * self.LENGTH + "a\n" + "  " * (self.LENGTH // 2), "  ",
+                           "[a](b)", "b")
 
 
 if __name__ == "__main__":
