@@ -33,6 +33,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **ATX fixture count in `docs/use-cases.md`.** The use cases gave
+  `atx-conformance` as 23 fixtures; its `MANIFEST.sha256` on `main` lists 25,
+  and each of the 25 carries a `did:opena2a` identifier.
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
   the README, the specification, the CHANGELOG and `examples/*.json` (9 files),
   while the family spec-drift check `did-example-forms` reads every Markdown and
