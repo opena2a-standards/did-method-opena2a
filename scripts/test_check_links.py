@@ -604,6 +604,49 @@ class CodeFences(unittest.TestCase):
         self.assertEqual(check_links.link_targets(text), [])
 
 
+class ListItemDocumentation(unittest.TestCase):
+    """The module docstring, which --help prints, and the unreleased CHANGELOG
+    entry state each list item rule with the conditions the script applies."""
+
+    def setUp(self):
+        self.doc = " ".join(check_links.__doc__.split())
+        changelog = (SCRIPTS.parent / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.changelog = " ".join(changelog.split("\n## [", 2)[1].split())
+
+    def test_fence_indentation_is_stated_in_columns(self):
+        # Under `- step` a tab reaches column 4, two columns past the item's
+        # content, so a fence indented by it is one; two tabs reach column 8.
+        for indent in ("\t", "  \t"):
+            text = f"- step\n\n{indent}~~~\n{indent}https://example.org/x\n{indent}~~~\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+        text = "- step\n\n\t\t~~~\n\t\thttps://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        self.assertNotIn("or by a tab from there", self.doc)
+        self.assertIn("line indented by four or more columns from there is not a fence", self.doc)
+        self.assertIn("under `- step` a tab, or two spaces and a tab, is two columns of "
+                      "indentation, and two tabs are six", self.doc)
+
+    def test_marker_below_a_paragraph_is_limited_in_the_same_containers_only(self):
+        # `2.` opens an item below the paragraph of `- a`, which it is not
+        # in, and in the item that `-` opens on its line.
+        for text in (
+            "- a\n2.  b\n\n       ```\n       https://example.org/x\n       ```\n",
+            "Steps:\n- 2. a\n\n        ```\n        https://example.org/x\n        ```\n",
+        ):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        self.assertIn("a list marker that is in the same block quotes and list items as "
+                      "that paragraph opens an item only with text after it, and a numbered "
+                      "one only as number 1", self.doc)
+
+    def test_item_with_nothing_after_its_marker_is_stated_to_end_at_a_blank_line(self):
+        text = "1.\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        self.assertIn("a blank line right below a marker with nothing after it ends that item",
+                      self.doc)
+        self.assertIn("an item with nothing after its marker also ends at a blank line right "
+                      "below the marker", self.changelog)
+
+
 class InlineLinks(unittest.TestCase):
     def test_balanced_parenthesis_stays_in_the_target(self):
         self.assertEqual(targets("[Foo](https://example.org/wiki/Foo_(bar))\n"),

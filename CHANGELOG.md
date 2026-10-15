@@ -146,7 +146,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   CommonMark, and a fenced code block that is still open where its list item
   ends is closed there. A list item ends at the first line that is not blank,
   is indented less than the item's content and does not continue the item's
-  paragraph. Block quotes and list items are read inside each other as
+  paragraph, and an item with nothing after its marker also ends at a blank
+  line right below the marker. Block quotes and list items are read inside each other as
   CommonMark reads them, and a line that continues a paragraph keeps open each
   block quote and list item that paragraph is in. HTML blocks are not
   followed, which is this script's simplification: a line that starts with `<`

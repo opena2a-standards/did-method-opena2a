@@ -11,15 +11,21 @@ them, and a fence holds at most three spaces of indentation, counted from
 where the text of the block quote or list item it is in starts: after each
 `>` and the space after it when there is one, and at the content of a list
 item, so under `- step` a fence indented by two to five spaces is one. A ```
-or ~~~ line indented by four or more spaces or by a tab from there is not a
-fence. A tab runs to the next multiple of four columns. A block quote holds
+or ~~~ line indented by four or more columns from there is not a fence. A tab
+runs to the next multiple of four columns, counted from the start of the
+line, so under `- step` a tab, or two spaces and a tab, is two columns of
+indentation, and two tabs are six. A block quote holds
 the lines that start with its `>`, and a list item the blank lines and the
 lines indented to its content, except that a blank line right below a marker
 with nothing after it ends that item. A line that is not blank and opens no
 heading, thematic break, fence, block quote or list item continues a
 paragraph open above it, so it is held by each block quote and list item that
-paragraph is in. Right below a paragraph line, a list marker opens an item
-only with text after it, and a numbered one only as number 1, and a line of
+paragraph is in. Right below a paragraph line, a list marker that is in the
+same block quotes and list items as that paragraph opens an item only with
+text after it, and a numbered one only as number 1; any other marker there
+opens one, such as a `2.` that starts the line below `- a`, which is not
+indented to that item's content, or the `2.` in `- 2. a`, which is in the
+item that `-` opens. Right below a paragraph line, a line of
 `=` or `-` underlines a heading, except below a paragraph that holds only link
 reference definitions: that line is then read as any other, so `===`
 continues the paragraph. A definition is read as one there only when it is on
@@ -146,9 +152,9 @@ START_TAG = re.compile(r"""<[A-Za-z][^\s/<>]*[\s/]((?:[^<>=]|=\s*(?:"[^"]*"|'[^'
 # list item that holds it starts, or from the start of its line outside one,
 # on a line whose tabs are expanded: at most three spaces, then a run of
 # backticks with no backtick after it on the line, or a run of tildes. A
-# closing fence has only spaces after it. A ``` or ~~~ line indented four
-# spaces or a tab from there is not a fence, and the lines below it are read
-# as usual.
+# closing fence has only spaces after it. A ``` or ~~~ line indented four or
+# more columns from there is not a fence, and the lines below it are read as
+# usual.
 OPENING_FENCE = re.compile(r" {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$")
 CLOSING_FENCE = re.compile(r" {0,3}(`{3,}|~{3,}) *$")
 # A block quote marker, as CommonMark reads one where a line or the text of a
@@ -409,8 +415,9 @@ def code_block_lines(lines: list) -> set:
                 leaf = None
                 break
             m = MARKER.match(line, start)
-            # Right below a paragraph line, a marker opens an item only with
-            # text after it, and a numbered one only as number 1.
+            # Right below a paragraph line in the same containers (`below`), a
+            # marker opens an item only with text after it, and a numbered one
+            # only as number 1.
             if m and not (below and (m.end() == len(line) or int(m.group(1) or 1) != 1)):
                 close(held)
                 empty = m.end() == len(line)
