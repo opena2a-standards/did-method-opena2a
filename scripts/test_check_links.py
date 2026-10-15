@@ -325,24 +325,250 @@ class CodeFences(unittest.TestCase):
         self.assertEqual(check_links.heading_anchors("```\n    ```\n# Code\n```\n# Title\n"),
                          {"title"})
 
-    def test_fence_indentation_in_a_list_item_is_counted_from_the_line_start(self):
-        # CommonMark counts a fence's indentation from the list item's content,
-        # so each of these holds a fenced code block there. This script counts
-        # it from the start of the line, its documented simplification, so a
-        # fence line indented four or more spaces, or a tab, inside a list item
-        # is prose, and the URL between the fence lines is read as a link.
-        for text, line in (
-            ("- step\n\n    ```\n    https://example.org/x\n    ```\n", 4),
-            ("1. step\n\n    ```\n    https://example.org/x\n    ```\n", 4),
-            ("- a\n  - b\n\n      ```\n      https://example.org/x\n      ```\n", 5),
-            ("- step\n\n\t```\n\thttps://example.org/x\n\t```\n", 4),
+    def test_fence_indentation_in_a_list_item_is_counted_from_the_item_content(self):
+        # Each fence is indented four or more spaces, or a tab, from the start
+        # of the line and at most three from the content of its list item, so
+        # each of these holds a fenced code block, as in CommonMark.
+        for text in (
+            "- step\n\n    ```\n    https://example.org/x\n    ```\n",
+            "1. step\n\n    ```\n    https://example.org/x\n    ```\n",
+            "- a\n  - b\n\n      ```\n      https://example.org/x\n      ```\n",
+            "- step\n\n\t```\n\thttps://example.org/x\n\t```\n",
+            "- step\n\n  \t~~~\n  \thttps://example.org/x\n  \t~~~\n",
+        ):
+            self.assertEqual(check_links.link_targets(text), [], text)
+
+    def test_fence_indented_four_spaces_from_the_item_content_is_not_a_fence(self):
+        for text in (
+            "- step\n\n      ```\n      https://example.org/x\n",
+            "- step\n\n\t\t```\n\t\thttps://example.org/x\n",
         ):
             self.assertEqual(check_links.link_targets(text),
-                             [(line, "https://example.org/x")], text)
-        # An opening fence at three spaces and a closing one at four, inside a
-        # list item: only the first is a fence here, so the lines after the
-        # block are hidden, where CommonMark closes the block and reads them.
-        text = "1. a\n\n   ```\n   code\n    ```\n\nSee https://example.org/after\n"
+                             [(4, "https://example.org/x")], text)
+
+    def test_closing_fence_in_a_list_item_is_counted_from_the_item_content(self):
+        # The closing fence is indented four spaces from the start of the line
+        # and one, or three, from the item's content.
+        for text, line in (
+            ("1. a\n\n   ```\n   code\n    ```\n\nSee https://example.org/after\n", 7),
+            ("1. a\n\n   ```\n   code\n    ```\n\n   See https://example.org/after\n", 7),
+            ("- a\n  ```\n  code\n     ```\n  See https://example.org/after\n", 5),
+        ):
+            self.assertEqual(check_links.link_targets(text),
+                             [(line, "https://example.org/after")], text)
+        self.assertEqual(
+            check_links.heading_anchors("1. a\n\n   ```\n   code\n    ```\n\n## After\n"),
+            {"after"})
+        # Four spaces from the item's content: a line of the block.
+        text = ("1. a\n\n   ```\n       ```\n   https://example.org/x\n   ```\n\n"
+                "See https://example.org/after\n")
+        self.assertEqual(check_links.link_targets(text), [(8, "https://example.org/after")])
+
+    def test_fenced_block_ends_where_its_list_item_ends(self):
+        for text, line in (
+            ("- a\n  ```\n  code\nSee https://example.org/after\n", 4),
+            ("- a\n  - b\n    ```\n    code\n  https://example.org/after\n", 5),
+            ("- a\n  ```\n\n  code\n\nSee https://example.org/after\n", 6),
+        ):
+            self.assertEqual(check_links.link_targets(text),
+                             [(line, "https://example.org/after")], text)
+        self.assertEqual(check_links.heading_anchors("- a\n  ```\n  code\n# After\n"), {"after"})
+        # A blank line, and a line indented to the item's content, are in it.
+        text = "- a\n  ```\n\n  https://example.org/x\n\n  ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+        # The lines below the item are read, each of them.
+        text = "- a\n  ```\n  code\nSee https://example.org/after\nand https://example.org/more\n"
+        self.assertEqual(check_links.link_targets(text),
+                         [(4, "https://example.org/after"), (5, "https://example.org/more")])
+        # The line that ends the block continues no paragraph of the item, so
+        # the item ends too and the fence below it is indented four spaces.
+        text = "10. a\n    ```\n    code\nb\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(7, "https://example.org/x")])
+
+    def test_line_indented_to_an_outer_item_ends_the_inner_item_only(self):
+        # `c` is in `- a` and ends `- b`. The first fence is indented three
+        # spaces from the content of `- a`; the second five, and it would be
+        # three from the content of `- b`.
+        text = "- a\n  - b\n\n  c\n\n     ```\n     https://example.org/x\n     ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+        text = "- a\n  - b\n\n  c\n\n       ```\n       https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(7, "https://example.org/x")])
+
+    def test_fence_line_is_not_read(self):
+        # Neither the line that opens a block nor the one that closes it,
+        # at the start of a line and in a list item.
+        for text in (
+            "```sh https://example.org/x\ncode\n``` https://example.org/y\n",
+            "- a\n\n    ```sh https://example.org/x\n    code\n    ``` https://example.org/y\n",
+        ):
+            self.assertEqual(check_links.link_targets(text), [], text)
+
+    def test_fence_on_the_line_of_a_list_marker(self):
+        for text in (
+            "- ```\n  https://example.org/x\n  ```\n\nSee https://example.org/after\n",
+            "1. - ~~~\n     https://example.org/x\n     ~~~\n\nSee https://example.org/after\n",
+        ):
+            self.assertEqual(check_links.link_targets(text),
+                             [(5, "https://example.org/after")], text)
+
+    def test_each_list_marker_opens_an_item(self):
+        # The fence is indented three spaces from the item's content.
+        for marker in ("-", "+", "*", "1.", "1)", "0.", "7)", "123456789."):
+            pad = " " * (len(marker) + 4)
+            text = f"{marker} a\n\n{pad}```\n{pad}https://example.org/x\n{pad}```\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+
+    def test_line_without_a_list_marker_opens_no_item(self):
+        # No space after the marker, ten digits, another delimiter, a letter,
+        # a marker indented four spaces. The fence is indented four or more
+        # spaces, and would be at the content of an item the line opened.
+        for first, indent in (("-a", 4), ("1.a", 4), ("1234567890. a", 13), ("1: a", 4),
+                              ("a. b", 4), ("    - a", 6)):
+            pad = " " * indent
+            text = f"{first}\n\n{pad}```\n{pad}https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(4, "https://example.org/x")], text)
+
+    def test_item_content_starts_after_the_spaces_that_follow_the_marker(self):
+        hidden = (
+            # Four spaces after the marker: content at column 5.
+            "-    a\n\n        ```\n        https://example.org/x\n        ```\n",
+            # Five: content one column after the marker, as for indented code.
+            "-     a\n\n     ```\n     https://example.org/x\n     ```\n",
+            # A marker indented three spaces, and a tab after a marker.
+            "   - a\n\n        ```\n        https://example.org/x\n        ```\n",
+            "-\ta\n\n\t```\n\thttps://example.org/x\n\t```\n",
+        )
+        for text in hidden:
+            self.assertEqual(check_links.link_targets(text), [], text)
+        read = (
+            "-    a\n\n         ```\n         https://example.org/x\n",
+            "-    a\n\n    ```\n    https://example.org/x\n",
+            "-     a\n\n      ```\n      https://example.org/x\n",
+        )
+        for text in read:
+            self.assertEqual(check_links.link_targets(text),
+                             [(4, "https://example.org/x")], text)
+
+    def test_item_with_nothing_after_its_marker(self):
+        # Its content starts one column after the marker.
+        for text in (
+            "1.\n    ```\n    https://example.org/x\n    ```\n",
+            "1.\n   a\n\n    ```\n    https://example.org/x\n    ```\n",
+        ):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # A blank line right below the marker ends the item, and so does a
+        # line indented less than its content: it has no paragraph to continue.
+        text = "1.\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        text = "1.\nb\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
+        # One item in another: the blank line ends the inner one only.
+        text = "* *\n\n     ```\n     https://example.org/x\n     ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+
+    def test_paragraph_line_without_indentation_continues_a_list_item(self):
+        # CommonMark's lazy continuation line: the item is still open below it.
+        for second in ("b", "#b", "####### b", "===", "1234567890. b"):
+            text = f"10. a\n{second}\n\n    ```\n    https://example.org/x\n    ```\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # A line indented four spaces from the list is one whatever it holds.
+        text = ("- a\n - b\n  - c\n   - d\n    - e\n\n         ```\n"
+                "         https://example.org/x\n")
+        self.assertEqual(check_links.link_targets(text), [(8, "https://example.org/x")])
+        text = ("- a\n - b\n  - c\n   - d\n    - e\n\n        ```\n"
+                "        https://example.org/x\n        ```\n")
+        self.assertEqual(check_links.link_targets(text), [])
+
+    def test_line_that_does_not_continue_a_paragraph_ends_a_list_item(self):
+        # After a blank line, or a line that opens a block: a heading, a
+        # thematic break, a fence or another list item.
+        for second in ("\nb", "# b", "###### b", "#", "***", "---", "___", "_ _ _"):
+            text = f"10. a\n{second}\n\n    ```\n    https://example.org/x\n"
+            self.assertEqual(targets(text), ["https://example.org/x"], text)
+        text = "10. a\n```\ncode\n```\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(7, "https://example.org/x")])
+        # The fence is indented two spaces from the content of `10. a` and
+        # four from the content of `- b`.
+        text = "10. a\n- b\n\n      ```\n      https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
+        # After indented code, here the `a` five spaces after its marker, no
+        # paragraph is open to continue.
+        text = "Steps:\n-     a\nb\n\n     ```\n     https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(6, "https://example.org/x")])
+        # Indented code below a blank line, indented less than the item's
+        # content, ends the item: the fence is not at the content of `-    a`.
+        text = "-    a\n\n    b\n     ```\n     https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
+
+    def test_list_marker_right_below_a_paragraph_line(self):
+        # A bullet with text after it, and number 1, open an item there.
+        for second in ("-   a", "1.  a", "01. a", "1)  a"):
+            text = f"Steps:\n{second}\n\n    ```\n    https://example.org/x\n    ```\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # Another number, and a marker with nothing after it, do not: the
+        # line is more of the paragraph.
+        for second in ("2.  a", "10. a", "0.  a"):
+            text = f"Steps:\n{second}\n\n    ```\n    https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(5, "https://example.org/x")], text)
+        for second in ("*", "+", "1.", "1)"):
+            text = f"Steps:\n{second}\n     ```\n     https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(4, "https://example.org/x")], text)
+        # The paragraph of a list item counts as one for the item's own lines.
+        text = "- Steps:\n  2.  a\n\n      ```\n      https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
+        # What follows a marker on its line is not below the paragraph: the
+        # fence is indented three spaces from the content of `2. a`.
+        text = "Steps:\n- 2. a\n\n        ```\n        https://example.org/x\n        ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+        # Below a blank line, a heading or a setext underline, and where the
+        # paragraph is in an item the line is not in, any number opens one.
+        for before in ("Steps:\n\n", "# Steps\n", "Steps\n===\n", "Steps\n=\n", "Steps\n--\n",
+                       "Steps\n---\n", "- a\n"):
+            text = f"{before}2.  a\n\n       ```\n       https://example.org/x\n       ```\n"
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # `=== x` is not a setext underline, so the paragraph goes on.
+        text = "Steps\n=== x\n2.  a\n\n    ```\n    https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(6, "https://example.org/x")])
+
+    def test_thematic_break_is_not_a_list_item(self):
+        for rule in ("- - -", "* * *", "-  - -", "* * * *"):
+            text = f"{rule}\n\n    ```\n    https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(4, "https://example.org/x")], text)
+        # One in a list item: the fence is indented five spaces from the
+        # content of `-`, and would be one from the content of a third `*`.
+        text = "- * * *\n\n       ```\n       https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
+        # Markers followed by text are items, one in the other.
+        text = "- - a\n\n      ```\n      https://example.org/x\n      ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+
+    def test_spaces_and_tabs_that_end_a_line_are_not_part_of_it(self):
+        # An item with nothing after its marker, which the blank line ends,
+        # and a thematic break.
+        for first in ("1. ", "1.\t", "-   ", "- - - ", "* * *\t"):
+            text = f"{first}\n\n    ```\n    https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(4, "https://example.org/x")], text)
+        # A setext underline, below which any number opens an item.
+        text = "Steps\n===  \n2.  a\n\n    ```\n    https://example.org/x\n    ```\n"
+        self.assertEqual(check_links.link_targets(text), [])
+
+    def test_block_quote_line_ends_the_paragraph_of_a_list_item(self):
+        # It is no lazy continuation line, so the item ends there and the
+        # fence below is indented four spaces.
+        text = "10. a\n> b\n\n    ```\n    https://example.org/x\n    ```\n"
+        self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
+
+    def test_html_block_is_read_as_paragraph_text(self):
+        # CommonMark ends the list item at the `<div>` line, which opens an
+        # HTML block; HTML blocks are not followed here, this script's
+        # simplification, so the line continues the item's paragraph and the
+        # item still holds the fence.
+        text = "10. a\n<div>\n\n    ```\n    https://example.org/x\n    ```\n"
         self.assertEqual(check_links.link_targets(text), [])
 
 
@@ -461,25 +687,40 @@ class FencedCodeBlocks(unittest.TestCase):
         self.assertEqual(check_links.link_targets("    > ```\n    > https://example.org/a\n"),
                          [(2, "https://example.org/a")])
 
-    def test_fence_after_a_list_item_marker_on_its_line_is_not_a_fence(self):
-        # CommonMark opens a fenced code block in the list item. This script
-        # counts a fence's indentation from the start of the line, or from
-        # the markers of a block quote, its documented simplification, so the
-        # line is prose and the URL below it is read as a link.
-        for text in ("- ```\n  https://example.org/x\n",
-                     "1. ```\n   https://example.org/x\n",
-                     "> - ```\n>   https://example.org/x\n"):
-            self.assertEqual(check_links.link_targets(text), [(2, "https://example.org/x")],
-                             text)
-        # In a block quote the count is from its markers, not from the text
-        # of a list item in it.
-        self.assertEqual(check_links.link_targets("> 1. a\n>\n>       ```\n"
-                                                  ">       https://example.org/x\n"),
+    def test_list_item_in_a_block_quote(self):
+        # The fence's indentation is counted from the content of the item,
+        # which starts after the block quote marker.
+        for text in ("> - ```\n>   https://example.org/x\n>   ```\n",
+                     "> 1. a\n>\n>       ```\n>       https://example.org/x\n>       ```\n"):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # The block closes where the item ends, inside the block quote.
+        self.assertEqual(check_links.link_targets("> - a\n>   ```\n>   code\n"
+                                                  "> https://example.org/after\n"),
+                         [(4, "https://example.org/after")])
+
+    def test_block_quote_in_a_list_item(self):
+        # The block quote marker is counted from the content of the item.
+        for text in ("- a\n\n  > ```\n  > https://example.org/x\n  > ```\n",
+                     "1.   a\n\n     > ```\n     > https://example.org/x\n"):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        # Four spaces from there, the line is indented code, read as prose.
+        self.assertEqual(check_links.link_targets("1. a\n\n       > ```\n"
+                                                  "       > https://example.org/x\n"),
                          [(4, "https://example.org/x")])
-        # The fence that closes such a block in CommonMark, at two spaces, is
-        # one here and opens a block, so the lines after it are hidden.
-        text = "- ```\n  https://example.org/x\n  ```\n\nSee https://example.org/after\n"
-        self.assertEqual(check_links.link_targets(text), [(2, "https://example.org/x")])
+        # The block closes where the block quote ends, inside the item.
+        self.assertEqual(check_links.link_targets("- > ```\n  > code\n"
+                                                  "  https://example.org/after\n"),
+                         [(3, "https://example.org/after")])
+
+    def test_lazy_continuation_line_keeps_its_block_quote_and_list_item_open(self):
+        # `b` continues the paragraph of the item in the block quote, so the
+        # fence below it is at the item's content.
+        text = "> 1.  a\nb\n>     ```\n>     https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [])
+        # A blank line ends the block quote, and the same fence is then
+        # indented four spaces from the marker of a new one.
+        text = "> 1.  a\n\n>     ```\n>     https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
 
     def test_code_span_ends_a_bare_url(self):
         self.assertEqual(targets("https://example.org/a`b`c\n"), ["https://example.org/a"])
@@ -637,6 +878,24 @@ class LongLines(unittest.TestCase):
     def test_run_of_whitespace_references_before_the_scheme(self):
         self.assert_linear('<a href="', "&#32;", 'https://example.org/x">t</a>',
                            "https://example.org/x")
+
+    def test_run_of_list_markers_on_one_line(self):
+        self.assert_linear("", "+ ", "[a](b)", "b")
+        self.assert_linear("", "1. ", "[a](b)", "b")
+
+    def test_run_of_list_markers_that_is_not_a_thematic_break(self):
+        self.assert_linear("", "* ", "[a](b)", "b")
+        self.assert_linear("", "* ", "+ * * [a](b) * *", "b")
+
+    def test_run_of_list_items(self):
+        self.assert_linear("", "- a\n", "[a](b)", "b")
+        self.assert_linear("", "- a\nb\n", "[a](b)", "b")
+
+    def test_run_of_lines_after_a_run_of_list_and_block_quote_markers(self):
+        # A blank line stays in every list item, up to a block quote.
+        self.assert_linear("- " * (self.LENGTH // 4) + "a\n", "\n", "[a](b)", "b")
+        self.assert_linear("> - " * (self.LENGTH // 8) + "a\n", ">\n", "[a](b)", "b")
+        self.assert_linear("- > " * (self.LENGTH // 8) + "a\n", "  >\n", "[a](b)", "b")
 
 
 if __name__ == "__main__":

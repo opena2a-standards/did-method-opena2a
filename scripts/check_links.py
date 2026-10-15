@@ -6,21 +6,28 @@ definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
 URLs in prose, which GitHub also renders as links, outside fenced code blocks
 and inline code spans. A fenced code block opens at a run of three or more
 backticks or tildes, and a run of backticks with a backtick after it on its
-line opens none. A fence holds at most three spaces of indentation,
-counted from the start of the line or, in a block quote, from where its text
-starts, after each `>` and the space after it when there is one, so a ``` or
-~~~ line indented by four or more spaces or by a tab is not a fence.
-CommonMark also counts those spaces from the content of an enclosing list
-item, so a fence indented further inside a list item, or after a list item
-marker on its line, is read here as prose: counting them from the start of
-the line there is this script's simplification. A block quote holds the lines
-after it that start with its `>`. A tab runs to the next multiple of four
-columns. The block closes at a run of the same character at least as long,
-indented in the same way, with only spaces or tabs after it, at a line that
-leaves a block quote the fence is in, or at the end of the file. A code span
-ends a bare URL before it. The character references in an inline link or
-reference definition target, such as `&amp;`, are decoded as CommonMark
-decodes them: a named one only with its `;`. A bare URL ends at whitespace or
+line opens none. Block quotes and list items are read as CommonMark reads
+them, and a fence holds at most three spaces of indentation, counted from
+where the text of the block quote or list item it is in starts: after each
+`>` and the space after it when there is one, and at the content of a list
+item, so under `- step` a fence indented by two to five spaces is one. A ```
+or ~~~ line indented by four or more spaces or by a tab from there is not a
+fence. A tab runs to the next multiple of four columns. A block quote holds
+the lines that start with its `>`, and a list item the blank lines and the
+lines indented to its content, except that a blank line right below a marker
+with nothing after it ends that item. A line that is not blank and opens no
+heading, thematic break, fence, block quote or list item continues a
+paragraph open above it, so it is held by each block quote and list item that
+paragraph is in. Right below a paragraph line, a list marker opens an item
+only with text after it, and a numbered one only as number 1. The block closes
+at a run of the same character at least as long, indented in the same way,
+with only spaces or tabs after it, at a line that leaves a block quote or list
+item the fence is in, or at the end of the file. HTML blocks are not followed,
+which is this script's simplification: a line that starts with `<` is read as
+a line of a paragraph. A code span ends a bare URL before it. The character
+references in an inline link or reference definition target, such as `&amp;`,
+are decoded as CommonMark decodes them: a named one only with its `;`. A bare
+URL ends at whitespace or
 `<`, and trailing punctuation and an unbalanced `)` are not part of it, as on
 GitHub. A URL in a quoted HTML attribute value, as in `<a href="...">`, runs
 to the quote that closes the value, whitespace, `<` and line breaks included,
@@ -130,20 +137,28 @@ URL = re.compile(rf"""=\s*(["'])(?:{LEADING_ON_LINE}*(https?://(?:(?!\1)[^\n])*)
 # the part is read twice unless a value has no closing quote, and only the
 # last value of each kind in the text can have none.
 START_TAG = re.compile(r"""<[A-Za-z][^\s/<>]*[\s/]((?:[^<>=]|=\s*(?:"[^"]*"|'[^']*')?)*)(>?)""")
-# A fence of a fenced code block, read from the start of its line or, in a
-# block quote, from after the markers that hold it, on a line whose tabs are
-# expanded: at most three spaces, then a run of backticks with no backtick
-# after it on the line, or a run of tildes. A closing fence has only spaces
-# after it. A ``` or ~~~ line indented four spaces or a tab is not a fence,
-# and the lines below it are read as usual. CommonMark also counts those
-# spaces from the content of an enclosing list item; counting them from the
-# start of the line there is this script's simplification, as the DEST limits
-# are.
+# A fence of a fenced code block, read where the text of the block quote or
+# list item that holds it starts, or from the start of its line outside one,
+# on a line whose tabs are expanded: at most three spaces, then a run of
+# backticks with no backtick after it on the line, or a run of tildes. A
+# closing fence has only spaces after it. A ``` or ~~~ line indented four
+# spaces or a tab from there is not a fence, and the lines below it are read
+# as usual.
 OPENING_FENCE = re.compile(r" {0,3}(?:(`{3,})[^`]*|(~{3,}).*)$")
 CLOSING_FENCE = re.compile(r" {0,3}(`{3,}|~{3,}) *$")
 # A block quote marker, as CommonMark reads one where a line or the text of a
-# block quote starts.
+# block quote or list item starts.
 QUOTE_MARKER = re.compile(r" {0,3}> ?")
+# A list item marker: a bullet, or one to nine digits, group 1, and a `.` or
+# `)`, followed by a space or the end of the line.
+MARKER = re.compile(r"(?:[-+*]|([0-9]{1,9})[.)])(?= |$)")
+# The start of an ATX heading and the underline of a setext heading. With a
+# fence, a block quote marker, a list marker and a thematic break, these are
+# the lines that end a paragraph: any other line that is not blank continues
+# one.
+ATX = re.compile(r"#{1,6}(?= |$)")
+SETEXT = re.compile(r"(?:=+|-+)$")
+SPACES = re.compile(r" *")
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
 # within it.
@@ -243,45 +258,138 @@ def blank(m: re.Match) -> str:
 
 def code_block_lines(lines: list) -> set:
     """The numbers of the lines that open, hold or close a fenced code block,
-    read as the module docstring says."""
+    read as the module docstring says: block quotes and list items are
+    followed as CommonMark reads them, a fence's indentation is counted from
+    where the text of the one it is in starts, and a block that is still open
+    where its block quote or list item ends is closed there."""
     code = set()
-    # How many block quotes are open after the last line read, and the
-    # character and length of the fence that opened the block the line is in.
-    depth = 0
-    fence = None
+    # The block quotes and list items open after the last line read, outermost
+    # first: None for a block quote, and for a list item how many columns its
+    # content starts after where the text of the one it is in starts.
+    containers = []
+    # Where the block quotes are in `containers`. A blank line stays in a list
+    # item and leaves a block quote, so it ends the first block quote it
+    # reaches and every container in it.
+    quotes = []
+    # The block the last line read is in, in the innermost container: a
+    # paragraph, a fenced code block given as the character and length of
+    # its fence, or None for any other.
+    leaf = None
+    empty = False  # The innermost item is a marker with nothing after it.
+
+    def close(held: int) -> None:
+        """End the containers after the first `held`."""
+        del containers[held:]
+        del quotes[bisect.bisect_left(quotes, held):]
+
     for n, line in enumerate(lines, 1):
-        line = line.expandtabs(4)
-        # The block quotes the line stays in, and `pos`, where its text starts
+        # A tab reaches the next column that is a multiple of four.
+        line = line.expandtabs(4).rstrip(" ")
+        was_empty, empty = empty, False
+        # The containers the line stays in, and `pos`, where its text starts
         # in the last of them.
         pos = held = 0
-        while held < depth:
-            m = QUOTE_MARKER.match(line, pos)
-            if not m:
+        while held < len(containers):
+            width = containers[held]
+            if width is None:
+                m = QUOTE_MARKER.match(line, pos)
+                if not m:
+                    break
+                pos = m.end()
+            elif pos == len(line):
+                # A blank line, which stays in each list item up to the next
+                # block quote, but not in one with nothing after its marker.
+                i = bisect.bisect_left(quotes, held)
+                held = (quotes[i] if i < len(quotes)
+                        else len(containers) - (1 if was_empty else 0))
                 break
-            pos = m.end()
+            elif SPACES.match(line, pos).end() - pos >= width:
+                pos += width
+            else:
+                break
             held += 1
-        if fence:
-            if held == depth:
-                code.add(n)
-                m = CLOSING_FENCE.match(line, pos)
-                if m and m.group(1)[0] == fence[0] and len(m.group(1)) >= fence[1]:
-                    fence = None
-                continue
-            # The line leaves a block quote the fence is in, which closes the
-            # block, and is read as any other line.
-            fence = None
-        depth = held
-        # The block quotes that open on the line, then a fence.
-        m = QUOTE_MARKER.match(line, pos)
-        while m:
-            depth += 1
-            pos = m.end()
-            m = QUOTE_MARKER.match(line, pos)
-        m = OPENING_FENCE.match(line, pos)
-        if m:
-            run = m.group(1) or m.group(2)
-            fence = (run[0], len(run))
+        if isinstance(leaf, tuple) and held == len(containers):
+            # A line of the block, or the fence that closes it.
             code.add(n)
+            m = CLOSING_FENCE.match(line, pos)
+            if m and m.group(1)[0] == leaf[0] and len(m.group(1)) >= leaf[1]:
+                leaf = None
+            continue
+        if pos == len(line):
+            # A blank line ends a paragraph, and the containers it leaves.
+            close(held)
+            leaf = None
+            continue
+        # A line that opens no block continues a paragraph open above it: one
+        # in the innermost container the line stays in (`below`), or, as a
+        # lazy continuation line, one in a container it leaves, which then
+        # stays open. A setext underline and a list marker are read against
+        # `below`.
+        paragraph = leaf == "paragraph"
+        below = paragraph and held == len(containers)
+        # A thematic break is three or more of one of these characters and
+        # nothing else but spaces, so one can start only in the run of them
+        # that ends the line: found once, for a line read in linear time.
+        last = line[-1]
+        tail = len(line.rstrip(last + " ")) if last in "*-_" else len(line)
+        while True:
+            start = SPACES.match(line, pos).end()
+            if start - pos >= 4:
+                # Indented code, which cannot interrupt a paragraph, or more
+                # of one: no block opens.
+                if not paragraph:
+                    close(held)
+                    leaf = None
+                break
+            if line[start] == ">":
+                close(held)
+                quotes.append(held)
+                containers.append(None)
+                held += 1
+                pos = start + 1 + (line[start + 1:start + 2] == " ")
+                leaf = None
+                paragraph = below = False
+                if pos >= len(line):
+                    break
+                # What follows the marker is read as a line of the new block
+                # quote.
+                continue
+            m = OPENING_FENCE.match(line, start)
+            if m:
+                close(held)
+                run = m.group(1) or m.group(2)
+                leaf = (run[0], len(run))
+                code.add(n)
+                break
+            if (ATX.match(line, start) or below and SETEXT.match(line, start)
+                    or start >= tail and line.count(last, start) >= 3):
+                close(held)
+                leaf = None
+                break
+            m = MARKER.match(line, start)
+            # Right below a paragraph line, a marker opens an item only with
+            # text after it, and a numbered one only as number 1.
+            if m and not (below and (m.end() == len(line) or int(m.group(1) or 1) != 1)):
+                close(held)
+                empty = m.end() == len(line)
+                # The content starts after one to four spaces; after five or
+                # more, and in an item with nothing in it, one column on.
+                spaces = SPACES.match(line, m.end()).end() - m.end()
+                width = m.end() - pos + (spaces if 1 <= spaces <= 4 else 1)
+                containers.append(width)
+                held += 1
+                pos += width
+                leaf = None
+                paragraph = below = False
+                if empty:
+                    break
+                # What follows the marker is read as a line of the new item.
+                continue
+            # Text: more of a paragraph when one is open above the line.
+            if not paragraph:
+                close(held)
+                leaf = "paragraph"
+            break
     return code
 
 
