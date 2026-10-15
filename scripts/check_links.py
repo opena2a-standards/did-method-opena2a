@@ -25,12 +25,16 @@ same block quotes and list items as that paragraph opens an item only with
 text after it, and a numbered one only as number 1; any other marker there
 opens one, such as a `2.` that starts the line below `- a`, which is not
 indented to that item's content, or the `2.` in `- 2. a`, which is in the
-item that `-` opens. Right below a paragraph line, a line of
-`=` or `-` underlines a heading, except below a paragraph that holds only link
-reference definitions: that line is then read as any other, so `===`
-continues the paragraph. A definition is read as one there only when it is on
-a line of its own, which is this script's simplification: CommonMark also
-reads one written across lines. A fenced code block closes at a run of the
+item that `-` opens. Right below a paragraph line, a line of `=` or `-` that
+is in the same block quotes and list items as that paragraph underlines a
+heading; one that starts the line below `- a`, which is not indented to that
+item's content, is read as any other line, so `===` there continues the
+paragraph of `- a`. A line of `=` or `-` in the same block quotes and list
+items is read as any other line too below a paragraph that holds only link
+reference definitions, so `===` continues the paragraph. A definition is
+read as one there only when it is on a line of its own, which is this
+script's simplification: CommonMark also reads one written across lines. A
+fenced code block closes at a run of the
 same character at least as long, indented in the same way,
 with only spaces or tabs after it, at a line that leaves a block quote or list
 item the fence is in, or at the end of the file. HTML blocks are not followed,

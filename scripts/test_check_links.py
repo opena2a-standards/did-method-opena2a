@@ -638,6 +638,25 @@ class ListItemDocumentation(unittest.TestCase):
                       "that paragraph opens an item only with text after it, and a numbered "
                       "one only as number 1", self.doc)
 
+    def test_setext_underline_is_stated_to_be_in_the_same_containers_only(self):
+        # A `===` or `--` line that starts the line below `- a`, or below
+        # `> a`, is no underline: it continues that paragraph, so `2.` cannot
+        # open an item below it. In the same containers it underlines a
+        # heading, and `2.` then opens an item that holds the fence.
+        for text in ("- a\n===\n  2. ```\n     https://example.org/x\n",
+                     "- a\n--\n  2. ```\n     https://example.org/x\n",
+                     "> a\n===\n> 2. ```\n>    https://example.org/x\n"):
+            self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")], text)
+        for text in ("- a\n  ===\n  2. ```\n     https://example.org/x\n",
+                     "- a\n  --\n  2. ```\n     https://example.org/x\n",
+                     "> a\n> ===\n> 2. ```\n>    https://example.org/x\n"):
+            self.assertEqual(check_links.link_targets(text), [], text)
+        self.assertIn("a line of `=` or `-` that is in the same block quotes and list items "
+                      "as that paragraph underlines a heading", self.doc)
+        self.assertIn("one that starts the line below `- a`, which is not indented to that "
+                      "item's content, is read as any other line, so `===` there continues "
+                      "the paragraph of `- a`", self.doc)
+
     def test_item_with_nothing_after_its_marker_is_stated_to_end_at_a_blank_line(self):
         text = "1.\n\n    ```\n    https://example.org/x\n"
         self.assertEqual(check_links.link_targets(text), [(4, "https://example.org/x")])
