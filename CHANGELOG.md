@@ -153,6 +153,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   repository.** A target such as `../outside.md` passed when a file of that
   name was there, next to the clone; a target whose resolved path is outside
   the repository is now reported, as the module docstring said.
+- **`scripts/check_links.py` on a connection closed before a reply or a reply
+  that is not HTTP.** urllib does not wrap the `http.client.RemoteDisconnected`
+  and `http.client.BadStatusLine` it raises while reading a response, so either
+  ended the run with a traceback, before any link was reported. The request is
+  now retried once, as a failed request is, and the URL is then reported as
+  broken, as in `request failed: BadStatusLine: garbage`, with the other links'
+  results and exit 1.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run

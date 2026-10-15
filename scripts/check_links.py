@@ -509,6 +509,14 @@ def check_remote(url: str) -> str | None:
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 1:
                 return f"request failed: {getattr(e, 'reason', e)}"
+        except (http.client.HTTPException, ConnectionError) as e:
+            # Raised while the response is read, which urllib does not wrap in
+            # URLError: a connection closed before a reply, or a reply whose
+            # status line is not HTTP. That line is in the message with its
+            # line break, so whitespace is collapsed to keep the report on
+            # one line.
+            if attempt == 1:
+                return f"request failed: {type(e).__name__}: {' '.join(str(e).split())}"
         time.sleep(2)
     return None
 

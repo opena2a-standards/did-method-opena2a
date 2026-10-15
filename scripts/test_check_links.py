@@ -5,8 +5,10 @@ Run from the repository root: python3 -m unittest discover -s scripts
 """
 from __future__ import annotations
 
+import socket
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -802,6 +804,52 @@ class RemoteChecks(unittest.TestCase):
         problem = check_links.check_remote("https://exa mple.org/a b")
         self.assertIsNotNone(problem)
         self.assertTrue(problem.startswith("invalid URL"), problem)
+
+    def serve(self, reply: bytes) -> tuple:
+        """A local server that reads two requests, sends reply to each and
+        closes the connection; returns its URL and the requests it read."""
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen()
+        server.settimeout(10)
+        requests = []
+
+        def answer():
+            for _ in range(2):
+                try:
+                    conn, _ = server.accept()
+                except OSError:
+                    return
+                with conn:
+                    requests.append(conn.recv(65536))
+                    if reply:
+                        conn.sendall(reply)
+
+        thread = threading.Thread(target=answer, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 10)
+        self.addCleanup(server.close)
+        return f"http://127.0.0.1:{server.getsockname()[1]}/x", requests
+
+    def test_connection_closed_without_a_reply_is_reported_as_broken(self):
+        url, requests = self.serve(b"")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        self.assertEqual(
+            problem,
+            "request failed: RemoteDisconnected: "
+            "Remote end closed connection without response",
+        )
+        # Retried once, as a failed request is.
+        self.assertEqual(len(requests), 2)
+
+    def test_reply_that_is_not_http_is_reported_as_broken(self):
+        url, requests = self.serve(b"garbage\r\n")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        # The status line's line break is not in the one-line report.
+        self.assertEqual(problem, "request failed: BadStatusLine: garbage")
+        self.assertEqual(len(requests), 2)
 
 
 class LongLines(unittest.TestCase):
