@@ -19,8 +19,13 @@ with nothing after it ends that item. A line that is not blank and opens no
 heading, thematic break, fence, block quote or list item continues a
 paragraph open above it, so it is held by each block quote and list item that
 paragraph is in. Right below a paragraph line, a list marker opens an item
-only with text after it, and a numbered one only as number 1. The block closes
-at a run of the same character at least as long, indented in the same way,
+only with text after it, and a numbered one only as number 1, and a line of
+`=` or `-` underlines a heading, except below a paragraph that holds only link
+reference definitions: that line is then read as any other, so `===`
+continues the paragraph. A definition is read as one there only when it is on
+a line of its own, which is this script's simplification: CommonMark also
+reads one written across lines. A fenced code block closes at a run of the
+same character at least as long, indented in the same way,
 with only spaces or tabs after it, at a line that leaves a block quote or list
 item the fence is in, or at the end of the file. HTML blocks are not followed,
 which is this script's simplification: a line that starts with `<` is read as
@@ -158,6 +163,14 @@ MARKER = re.compile(r"(?:[-+*]|([0-9]{1,9})[.)])(?= |$)")
 # one.
 ATX = re.compile(r"#{1,6}(?= |$)")
 SETEXT = re.compile(r"(?:=+|-+)$")
+# A link reference definition on a line of its own, read where its text
+# starts: a label, group 1, that holds a `[` or `]` only escaped and is not
+# all spaces; `:`; a destination, group 2, in `<` and `>` or without spaces or
+# controls; and a title, after a space, in quotes or parentheses.
+DEFINITION = re.compile(r"""\[(?! *\])((?:\\.|[^\\\[\]])+)\]: *"""
+                        r"""(<(?:\\.|[^\\<>])*>|[^<\x00-\x20\x7f][^\x00-\x20\x7f]*)"""
+                        r"""(?: +(?:"(?:\\.|[^\\"])*"|'(?:\\.|[^\\'])*'|\((?:\\.|[^\\()])*\)))? *""")
+ESCAPE = re.compile(r"\\.")
 SPACES = re.compile(r" *")
 BARE_TRAILING = ".,:;!?\"'*_~"
 # What the WHATWG URL parser strips from both ends of a URL, and removes from
@@ -256,6 +269,23 @@ def blank(m: re.Match) -> str:
     return " " * len(m.group())
 
 
+def is_definition(line: str, start: int) -> bool:
+    """Whether the line, from `start`, is one whole link reference definition,
+    as CommonMark reads one: a label of at most 999 characters, and a
+    destination outside `<` and `>` whose unescaped parentheses are in
+    balanced pairs."""
+    m = DEFINITION.fullmatch(line, start)
+    if not m or len(m.group(1)) > 999:
+        return False
+    depth = 0
+    if not m.group(2).startswith("<"):
+        for c in ESCAPE.sub("", m.group(2)):
+            depth += (c == "(") - (c == ")")
+            if depth < 0:
+                return False
+    return depth == 0
+
+
 def code_block_lines(lines: list) -> set:
     """The numbers of the lines that open, hold or close a fenced code block,
     read as the module docstring says: block quotes and list items are
@@ -275,6 +305,9 @@ def code_block_lines(lines: list) -> set:
     # paragraph, a fenced code block given as the character and length of
     # its fence, or None for any other.
     leaf = None
+    # The paragraph holds only link reference definitions, each on a line of
+    # its own: CommonMark reads no setext heading there.
+    definitions = False
     empty = False  # The innermost item is a marker with nothing after it.
 
     def close(held: int) -> None:
@@ -345,6 +378,8 @@ def code_block_lines(lines: list) -> set:
                 if not paragraph:
                     close(held)
                     leaf = None
+                else:
+                    definitions = definitions and is_definition(line, start)
                 break
             if line[start] == ">":
                 close(held)
@@ -366,7 +401,9 @@ def code_block_lines(lines: list) -> set:
                 leaf = (run[0], len(run))
                 code.add(n)
                 break
-            if (ATX.match(line, start) or below and SETEXT.match(line, start)
+            # Below definitions alone, a setext underline is read as any
+            # other line.
+            if (ATX.match(line, start) or below and not definitions and SETEXT.match(line, start)
                     or start >= tail and line.count(last, start) >= 3):
                 close(held)
                 leaf = None
@@ -394,6 +431,8 @@ def code_block_lines(lines: list) -> set:
             if not paragraph:
                 close(held)
                 leaf = "paragraph"
+                definitions = True
+            definitions = definitions and is_definition(line, start)
             break
     return code
 

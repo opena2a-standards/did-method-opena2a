@@ -155,6 +155,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   run of spaces was scanned again for each item; it is now scanned once, and
   the line is read in 0.08 s. The README and the spec hold no fence in a
   list item, and the targets and anchors read from them are unchanged.
+- **`scripts/check_links.py` reads a `===` line below link reference
+  definitions as a line of their paragraph.** A line of `=` or `-` right below
+  a paragraph line was read as a setext heading underline even when that
+  paragraph held only link reference definitions, where CommonMark reads no
+  heading and a `===` line continues the paragraph. Below `[a]: /u` and
+  `===`, a `` 2. ``` `` line was then read as a list item that opens a fenced
+  code block, and `https://example.org/x` on the line below it was not
+  checked; CommonMark reads both lines as more of the paragraph, as `2.` cannot
+  interrupt one. Below a paragraph of definitions, each on a line of its own,
+  a line of `=`, such as `===`, and the line `--` now continue the paragraph,
+  and a `---` line is still read as a thematic break. A definition written
+  across lines is not read as one there, which is this script's
+  simplification. The targets, anchors and fenced code block lines read from
+  the README and the spec are unchanged.
 - **`scripts/check_links.py` reports a relative target outside the
   repository.** A target such as `../outside.md` passed when a file of that
   name was there, next to the clone; a target whose resolved path is outside

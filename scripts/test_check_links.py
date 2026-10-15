@@ -535,6 +535,36 @@ class CodeFences(unittest.TestCase):
         text = "Steps\n=== x\n2.  a\n\n    ```\n    https://example.org/x\n"
         self.assertEqual(check_links.link_targets(text), [(6, "https://example.org/x")])
 
+    def test_setext_underline_below_link_reference_definitions_continues_their_paragraph(self):
+        # A paragraph that holds only link reference definitions has no
+        # heading to underline, so `===` is more of it, and so is `2.` below.
+        text = "[a]: /u\n===\n2. ```\n   https://example.org/x\n"
+        self.assertEqual(check_links.link_targets(text),
+                         [(1, "/u"), (4, "https://example.org/x")])
+        for first in ("[a]: /u\n[b]: <v> \"t\"\n", "   [a]:/u   'x y'\n", "[a]: <>\n",
+                      "[a\\]b]: /u((x))\n", "[a]: /u\\(x (t)\n"):
+            text = f"{first}===\n2.  a\n\n    ```\n    https://example.org/x\n"
+            self.assertIn((first.count("\n") + 5, "https://example.org/x"),
+                          check_links.link_targets(text), text)
+        # In a block quote and in a list item.
+        for text in ("> [a]: /u\n> ===\n> 2. ```\n>    https://example.org/x\n",
+                     "- [a]: /u\n  ===\n  2. ```\n     https://example.org/x\n"):
+            self.assertIn((4, "https://example.org/x"), check_links.link_targets(text), text)
+        # Below a paragraph that holds more than definitions, or a line that
+        # is not one, `===` underlines a heading, and below one of `-` a
+        # thematic break: `2.` then opens an item that holds the fence.
+        for first in ("[a]: /u\ntext\n===\n", "[a]: /u x\n===\n", "[a]: /u \"t\" x\n===\n",
+                      "[a]: /u(x\n===\n", "[a]: /u)x\n===\n", "[ ]: /u\n===\n",
+                      "[a]: <u\\>\n===\n", "[a]: /u\n---\n"):
+            text = f"{first}2. ```\n   https://example.org/x\n"
+            self.assertNotIn("https://example.org/x", targets(text), text)
+        # A line of one `=`, and `--`, which is no thematic break, continue
+        # the paragraph too.
+        for line in ("=", "--"):
+            text = f"[a]: /u\n{line}\n2. ```\n   https://example.org/x\n"
+            self.assertEqual(check_links.link_targets(text),
+                             [(1, "/u"), (4, "https://example.org/x")], text)
+
     def test_thematic_break_is_not_a_list_item(self):
         for rule in ("- - -", "* * *", "-  - -", "* * * *"):
             text = f"{rule}\n\n    ```\n    https://example.org/x\n"
@@ -934,6 +964,15 @@ class LongLines(unittest.TestCase):
     def test_run_of_list_markers_that_is_not_a_thematic_break(self):
         self.assert_linear("", "* ", "[a](b)", "b")
         self.assert_linear("", "* ", "+ * * [a](b) * *", "b")
+
+    def test_run_of_characters_in_a_link_reference_definition(self):
+        # Each is read as the first line of a paragraph, which may hold only
+        # definitions.
+        self.assert_linear("[a]: /", "(", "\n===\n2. https://example.org/x",
+                           "https://example.org/x")
+        self.assert_linear("[", "\\]", " https://example.org/x", "https://example.org/x")
+        self.assert_linear('[a]: /u "', '\\"', " https://example.org/x",
+                           "https://example.org/x")
 
     def test_run_of_list_items(self):
         self.assert_linear("", "- a\n", "[a](b)", "b")
