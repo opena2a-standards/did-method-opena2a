@@ -114,13 +114,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   spaces, or by a tab, was read as a code fence, so the lines below it were
   skipped up to the next such line: a `https://example.org/a` on the line
   after it, which GitHub renders as a link, was not checked. A fence now holds
-  at most three spaces of indentation, counted from the start of the line, so
-  a line indented further neither opens nor closes one, and the headings below
-  it get their anchors. CommonMark counts those spaces from the content of an
-  enclosing list item, so a fence indented four spaces inside a list item is a
-  fence there and prose here: the count from the start of the line is this
-  script's simplification. The README and the spec hold no such line, so the
-  targets read from them are unchanged.
+  at most three spaces of indentation, so a line indented further neither
+  opens nor closes one, and the headings below it get their anchors. The
+  README and the spec hold no such line, so the targets read from them are
+  unchanged.
 - **`scripts/check_links.py` closes a fenced code block at a matching fence
   and reads one in a block quote.** A fence was any line that started with
   three backticks or tildes after at most three spaces, and the next such line
@@ -131,11 +128,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   hides the lines after it. A fence after block quote markers opens a block,
   with its three spaces of indentation counted from after those markers, and
   the block also closes where the block quote ends: a URL in such a block was
-  followed. In a list item the count is still from the start of the line, so
-  a fence after a list item marker on its line is prose, as one indented four
-  spaces under an item is. Headings in a fenced code block are read by the
-  same rule. A code span now ends a bare URL before it, as on GitHub. The
-  targets and headings read from the README and the spec are unchanged.
+  followed. Headings in a fenced code block are read by the same rule. A code
+  span now ends a bare URL before it, as on GitHub. The targets and headings
+  read from the README and the spec are unchanged.
+- **`scripts/check_links.py` counts a fence's indentation from the content of
+  its list item.** Counted from the start of the line, a closing fence
+  indented four spaces under `1. a` was not read as one, so the block stayed
+  open and every line below it was skipped: a link there was not checked, and
+  a link to a heading there was reported as `no heading with anchor`. A block
+  fenced at four or more spaces in a list item, as under `- step`, and a block
+  fenced after a list item marker on its line were read as prose, so a URL in
+  them was checked as a link. A fence's zero to three spaces of indentation
+  are now counted from the content of the list item it is in, as in
+  CommonMark, and a fenced code block that is still open where its list item
+  ends is closed there. A list item ends at the first line that is not blank,
+  is indented less than the item's content and does not continue the item's
+  paragraph. Block quotes and list items are read inside each other as
+  CommonMark reads them, and a line that continues a paragraph keeps open each
+  block quote and list item that paragraph is in. HTML blocks are not
+  followed, which is this script's simplification: a line that starts with `<`
+  is read as a line of a paragraph. The README and the spec hold no fence in a
+  list item, and the targets and anchors read from them are unchanged.
 - **`scripts/check_links.py` reports a relative target outside the
   repository.** A target such as `../outside.md` passed when a file of that
   name was there, next to the clone; a target whose resolved path is outside
