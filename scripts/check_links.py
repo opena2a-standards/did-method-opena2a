@@ -25,12 +25,16 @@ same block quotes and list items as that paragraph opens an item only with
 text after it, and a numbered one only as number 1; any other marker there
 opens one, such as a `2.` that starts the line below `- a`, which is not
 indented to that item's content, or the `2.` in `- 2. a`, which is in the
-item that `-` opens. Right below a paragraph line, a line of
-`=` or `-` underlines a heading, except below a paragraph that holds only link
-reference definitions: that line is then read as any other, so `===`
-continues the paragraph. A definition is read as one there only when it is on
-a line of its own, which is this script's simplification: CommonMark also
-reads one written across lines. A fenced code block closes at a run of the
+item that `-` opens. Right below a paragraph line, a line of `=` or `-` that
+is in the same block quotes and list items as that paragraph underlines a
+heading; one that starts the line below `- a`, which is not indented to that
+item's content, is read as any other line, so `===` there continues the
+paragraph of `- a`. A line of `=` or `-` in the same block quotes and list
+items is read as any other line too below a paragraph that holds only link
+reference definitions, so `===` continues the paragraph. A definition is
+read as one there only when it is on a line of its own, which is this
+script's simplification: CommonMark also reads one written across lines. A
+fenced code block closes at a run of the
 same character at least as long, indented in the same way,
 with only spaces or tabs after it, at a line that leaves a block quote or list
 item the fence is in, or at the end of the file. HTML blocks are not followed,
@@ -543,6 +547,27 @@ def check_relative(doc: Path, target: str) -> str | None:
     return None
 
 
+# The most characters of an error message a report copies. The message of a
+# reply whose status line is not HTTP holds that line, of up to 64 KiB.
+MESSAGE_LIMIT = 200
+
+
+def one_line(message: str) -> str:
+    """message as a report line holds it: each run of whitespace becomes one
+    space, each other character that str.isprintable rejects (a control
+    character such as ESC, or a format character such as U+202E) is written as
+    its Python escape, such as \\x1b or \\u202e, and a text longer than
+    MESSAGE_LIMIT characters is cut after the last whole character or escape
+    that fits within them, with "..." added."""
+    text = ""
+    for c in " ".join(message.split()):
+        piece = c if c.isprintable() else c.encode("unicode_escape").decode("ascii")
+        if len(text) + len(piece) > MESSAGE_LIMIT:
+            return text + "..."
+        text += piece
+    return text
+
+
 def check_remote(url: str) -> str | None:
     request = urllib.request.Request(request_url(url), headers={"User-Agent": USER_AGENT})
     for attempt in range(2):
@@ -556,18 +581,18 @@ def check_remote(url: str) -> str | None:
                 return f"HTTP {e.code} for an anonymous request"
         except http.client.InvalidURL as e:
             # A host or port http.client cannot use, such as a host with a space.
-            return f"invalid URL: {e}"
+            return f"invalid URL: {one_line(str(e))}"
         except (urllib.error.URLError, TimeoutError) as e:
             if attempt == 1:
-                return f"request failed: {getattr(e, 'reason', e)}"
+                return f"request failed: {one_line(str(getattr(e, 'reason', e)))}"
         except (http.client.HTTPException, ConnectionError) as e:
             # Raised while the response is read, which urllib does not wrap in
             # URLError: a connection closed before a reply, or a reply whose
-            # status line is not HTTP. That line is in the message with its
-            # line break, so whitespace is collapsed to keep the report on
-            # one line.
+            # status line is not HTTP. That line is in the message as the
+            # server sent it, line break included, so one_line keeps the
+            # report on one line.
             if attempt == 1:
-                return f"request failed: {type(e).__name__}: {' '.join(str(e).split())}"
+                return f"request failed: {type(e).__name__}: {one_line(str(e))}"
         time.sleep(2)
     return None
 
