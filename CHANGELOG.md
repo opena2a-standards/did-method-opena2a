@@ -181,6 +181,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   now retried once, as a failed request is, and the URL is then reported as
   broken, as in `request failed: BadStatusLine: garbage`, with the other links'
   results and exit 1.
+- **`scripts/check_links.py` escapes control characters in a reported error
+  and cuts it at 200 characters.** A reply whose status line is not HTTP was
+  reported with that line as the server sent it, so an escape sequence in it,
+  such as ESC `[31m`, reached the terminal or CI log, and a status line of
+  65,000 characters was copied in full. In the error text of a request that
+  failed or of a URL that cannot be requested, each run of whitespace is one
+  space, each other control or format character is written as its Python
+  escape, as in `request failed: BadStatusLine: \x1b[31mred`, and a text
+  longer than 200 characters is cut to 200 or fewer and ends in `...`.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run

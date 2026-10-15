@@ -943,6 +943,65 @@ class RemoteChecks(unittest.TestCase):
         self.assertEqual(problem, "request failed: BadStatusLine: garbage")
         self.assertEqual(len(requests), 2)
 
+    def test_control_characters_in_a_status_line_are_written_as_escapes(self):
+        # ESC, the one-byte CSI (0x9b, read as U+009B) and BEL, which a
+        # terminal acts on when they are printed as sent.
+        url, requests = self.serve(b"\x1b[31mred\x9b0m\x07\r\n")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        self.assertEqual(problem, r"request failed: BadStatusLine: \x1b[31mred\x9b0m\x07")
+        self.assertEqual(len(requests), 2)
+
+    def test_long_status_line_is_cut(self):
+        url, requests = self.serve(b"A" * 65000 + b"\r\n")
+        with mock.patch.object(check_links.time, "sleep"):
+            problem = check_links.check_remote(url)
+        self.assertEqual(
+            problem,
+            "request failed: BadStatusLine: " + "A" * check_links.MESSAGE_LIMIT + "...",
+        )
+        self.assertEqual(len(requests), 2)
+
+    def test_messages_of_the_other_request_errors_are_written_on_one_line(self):
+        long = "B" * (check_links.MESSAGE_LIMIT + 1)
+        cases = [
+            # 25 characters precede the run of B: "nonnumeric port: '", the
+            # four of \x1b and "[2J".
+            (check_links.http.client.InvalidURL(f"nonnumeric port: '\x1b[2J{long}'"),
+             r"invalid URL: nonnumeric port: '\x1b[2J" + long[:check_links.MESSAGE_LIMIT - 25] + "..."),
+            (check_links.urllib.error.URLError("ftp error: 550\x1b[31m no\r\nsuch file"),
+             r"request failed: ftp error: 550\x1b[31m no such file"),
+        ]
+        for error, expected in cases:
+            def urlopen(request, timeout, error=error):
+                raise error
+
+            with self.subTest(error=type(error).__name__), \
+                    mock.patch.object(check_links.urllib.request, "urlopen", urlopen), \
+                    mock.patch.object(check_links.time, "sleep"):
+                self.assertEqual(check_links.check_remote("https://example.org/"), expected)
+
+
+class OneLine(unittest.TestCase):
+    def test_whitespace_runs_become_one_space(self):
+        self.assertEqual(check_links.one_line(" a\r\n\tb \x85c "), "a b c")
+
+    def test_format_characters_and_delete_are_written_as_escapes(self):
+        self.assertEqual(check_links.one_line("a\N{RIGHT-TO-LEFT OVERRIDE}b\N{SOFT HYPHEN}c\x7fd"),
+                         "a\\u202eb\\xadc\\x7fd")
+
+    def test_printable_text_is_kept_as_written(self):
+        self.assertEqual(check_links.one_line("caf\xe9 \\x1b"), "caf\xe9 \\x1b")
+
+    def test_message_of_the_limit_is_not_cut(self):
+        text = "A" * check_links.MESSAGE_LIMIT
+        self.assertEqual(check_links.one_line(text), text)
+
+    def test_escape_that_would_pass_the_limit_is_left_out_whole(self):
+        text = "A" * (check_links.MESSAGE_LIMIT - 2) + "\x1bB"
+        self.assertEqual(check_links.one_line(text),
+                         "A" * (check_links.MESSAGE_LIMIT - 2) + "...")
+
 
 class LongLines(unittest.TestCase):
     """A line built to make a backtracking pattern retry from every position."""
