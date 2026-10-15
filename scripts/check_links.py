@@ -289,6 +289,9 @@ def code_block_lines(lines: list) -> set:
         # The containers the line stays in, and `pos`, where its text starts
         # in the last of them.
         pos = held = 0
+        # Where the run of spaces last scanned ends. `pos` only moves on, so
+        # while it is inside that run the run is not scanned again.
+        run_end = -1
         while held < len(containers):
             width = containers[held]
             if width is None:
@@ -303,10 +306,12 @@ def code_block_lines(lines: list) -> set:
                 held = (quotes[i] if i < len(quotes)
                         else len(containers) - (1 if was_empty else 0))
                 break
-            elif SPACES.match(line, pos).end() - pos >= width:
-                pos += width
             else:
-                break
+                if run_end < pos:
+                    run_end = SPACES.match(line, pos).end()
+                if run_end - pos < width:
+                    break
+                pos += width
             held += 1
         if isinstance(leaf, tuple) and held == len(containers):
             # A line of the block, or the fence that closes it.

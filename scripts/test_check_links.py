@@ -945,6 +945,12 @@ class LongLines(unittest.TestCase):
         self.assert_linear("> - " * (self.LENGTH // 8) + "a\n", ">\n", "[a](b)", "b")
         self.assert_linear("- > " * (self.LENGTH // 8) + "a\n", "  >\n", "[a](b)", "b")
 
+    def test_line_indented_under_a_run_of_list_items(self):
+        # The line stays in every item. The head holds the first half of its
+        # indentation.
+        self.assert_linear("- " * self.LENGTH + "a\n" + "  " * (self.LENGTH // 2), "  ",
+                           "[a](b)", "b")
+
 
 if __name__ == "__main__":
     unittest.main()

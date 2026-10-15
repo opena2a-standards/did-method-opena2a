@@ -150,7 +150,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   CommonMark reads them, and a line that continues a paragraph keeps open each
   block quote and list item that paragraph is in. HTML blocks are not
   followed, which is this script's simplification: a line that starts with `<`
-  is read as a line of a paragraph. The README and the spec hold no fence in a
+  is read as a line of a paragraph. A line indented to the content of 100,000
+  nested list items took 2.65 s to read, fourfold per doubling, because the
+  run of spaces was scanned again for each item; it is now scanned once, and
+  the line is read in 0.08 s. The README and the spec hold no fence in a
   list item, and the targets and anchors read from them are unchanged.
 - **`scripts/check_links.py` reports a relative target outside the
   repository.** A target such as `../outside.md` passed when a file of that
