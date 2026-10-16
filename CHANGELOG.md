@@ -93,9 +93,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   JSON file in the repository, so a `did:opena2a` string in
   `examples/conformance/`, `registries/` or `MAINTAINERS.md` could turn that
   check red unnoticed. It now reads every `.md` and `.json` file outside hidden
-  directories (13 files). The README and Section 3.1.2 now also say that it
-  fails when a percent-encoded `did:opena2a` string is spelled out anywhere
-  other than Section 3.1.1.
+  directories (13 files). `CONTRIBUTING.md` and Section 3.1.2 now also say
+  that it fails when a percent-encoded `did:opena2a` string is spelled out
+  anywhere other than Section 3.1.1.
 - **`scripts/check_examples.py --live` on a network error.** A DNS failure,
   refused connection or timeout is reported as a problem for each DID, with
   exit 1, instead of ending the run with a traceback.
