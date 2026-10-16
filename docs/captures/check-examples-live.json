@@ -1,0 +1,6 @@
+{
+  "command": "python3 scripts/check_examples.py --live",
+  "exitCode": 0,
+  "capturedAt": "2026-10-16T01:20:19Z",
+  "sha256": "ec6b58e3fb0d7319c4394234f0d6d18c654faf09bb34288b02d014f4a282e87e"
+}

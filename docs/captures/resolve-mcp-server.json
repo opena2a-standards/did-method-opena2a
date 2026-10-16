@@ -1,0 +1,6 @@
+{
+  "command": "curl -s 'https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem' | jq .",
+  "exitCode": 0,
+  "capturedAt": "2026-10-16T01:07:13Z",
+  "sha256": "a70e96afb9440f64b5fdbfe307b08d5c58be2d48965bc4b24186f01d47798d14"
+}

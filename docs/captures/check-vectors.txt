@@ -1,0 +1,3 @@
+ok    vectors/registry-self.json: accept
+ok    vectors/registry-substitution.json: reject resolved-id-mismatch
+2 vectors, 0 failures

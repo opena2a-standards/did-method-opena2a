@@ -18,6 +18,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   from the vector's expected verdict. `scripts/check_did_syntax.py` also reads
   `vectors/`, so a percent-encoded DID there fails locally as it fails the
   family spec-drift check `did-example-forms`.
+- **README sample output.** Each of the three shell commands in the README is
+  followed by what it printed, as whole lines with `...` standing for lines
+  left out, and so are `python3 scripts/check_examples.py --live` and
+  `python3 scripts/check_vectors.py`, which the README names in prose. The
+  resolution commands pass `-s`; the two use-case commands pipe the reply
+  through `jq .`, and the Resolution command passes `-i` to print the response
+  headers. `scripts/capture_readme.py` re-runs these commands and writes each
+  full output to `docs/captures/<name>.txt`, with a `.json` sidecar recording
+  the command, its exit code, the UTC time it ran and the SHA-256 of the
+  output. `scripts/test_readme.py` fails when a shell command in the README has
+  no output under it, when an excerpt is not whole lines of its capture in
+  their order, or when a sidecar records another command, another SHA-256 or a
+  non-zero exit code.
+- **`python3 scripts/check_examples.py --live` compares keys.** Each resolved
+  document's verification method ids, types and controllers, a JSON Web Key's
+  `kty` and `alg`, its `authentication` and `assertionMethod` lists and its
+  `@context` must match the layout the Implementation status notes of
+  Sections 5.1 and 5.3 record for the reference deployment, and each Ed25519
+  key the registry controls must carry the value of the registry document's
+  `#signing-key`; the run exits 1 otherwise. Before, `--live` compared `id`
+  and `service` only, and exited 0 against a registry document carrying one
+  key or a resource document whose `#registry-key` was another key. Against
+  the reference deployment it exits 0. `docs/examples.md` states that the
+  resolved registry document carries three verification methods where its
+  example carries one.
 
 ### Changed
 
@@ -42,6 +67,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **ATX fixture count in `docs/use-cases.md`.** The use cases gave
   `atx-conformance` as 23 fixtures; its `MANIFEST.sha256` on `main` lists 25,
   and each of the 25 carries a `did:opena2a` identifier.
+- **`examples/registry.json` lists the Federation endpoint the deployment
+  serves.** The reference deployment's registry DID Document lists the
+  `Federation` service at `https://api.oa2a.org/api/v1/federation/proposals`;
+  the example listed `https://api.oa2a.org/api/v1/federation/sync`, so
+  `python3 scripts/check_examples.py --live` exited 1 with
+  `examples/registry.json: service endpoints differ from the live document`.
+  The example now carries the served URL, and the run exits 0.
 - **`scripts/check_did_syntax.py` reads every Markdown and JSON file.** It read
   the README, the specification, the CHANGELOG and `examples/*.json` (9 files),
   while the family spec-drift check `did-example-forms` reads every Markdown and

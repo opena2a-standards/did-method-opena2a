@@ -32,7 +32,7 @@
     {
       "id": "did:opena2a:registry:opena2a.org#federation",
       "type": "Federation",
-      "serviceEndpoint": "https://api.oa2a.org/api/v1/federation/sync"
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/federation/proposals"
     }
   ],
   "created": "2026-02-15T00:00:00Z",
