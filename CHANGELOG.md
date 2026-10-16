@@ -29,7 +29,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   conformance suite's fixture count to `docs/use-cases.md`, and the full
   notes on each example to `docs/examples.md`. The References list joined a
   new Documentation list. Section 6.7 links `docs/trust-model.md` for the
-  side-by-side comparison of trust anchors.
+  side-by-side comparison of trust anchors. The README header states the
+  registration and the method's scope without the merge date or the AIP
+  revision, which the specification's Status of this document section
+  carries, and the sentence on what a resolved DID Document carries opens the
+  Resolution section. `scripts/test_readme.py` fails when a README line holds
+  a three-part version such as 1.2.0 or a date written as 2026-07-04, or a
+  README paragraph runs over 60 words.
 
 ### Fixed
 
@@ -240,7 +246,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   description; "this revision" read as a 0.3 change.
 - **Status paragraph and Section 10** cite AIP-SPEC 1.2.0-draft Section 3.2 and
   `draft-fane-opena2a-aip-04`; the Section 3.2 text is unchanged from
-  1.1.0-draft. The README cites the same draft.
+  1.1.0-draft.
 - **README.** The "resolve the reference registry's own DID" use case says that
   every `did:opena2a:registry:<authority>` DID currently resolves to that same
   document, and that a verifier rejects that answer with the Section 6.5 check.
