@@ -246,7 +246,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   description; "this revision" read as a 0.3 change.
 - **Status paragraph and Section 10** cite AIP-SPEC 1.2.0-draft Section 3.2 and
   `draft-fane-opena2a-aip-04`; the Section 3.2 text is unchanged from
-  1.1.0-draft. The README cites the same draft.
+  1.1.0-draft.
 - **README.** The "resolve the reference registry's own DID" use case says that
   every `did:opena2a:registry:<authority>` DID currently resolves to that same
   document, and that a verifier rejects that answer with the Section 6.5 check.
