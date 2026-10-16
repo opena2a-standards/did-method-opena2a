@@ -64,6 +64,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **`scripts/test_readme.py` reads code blocks as `scripts/check_links.py`
+  does.** The word-limit test flipped its fenced-code state at any line that
+  starts with three backticks or three tildes, so after a backtick fence
+  holding a `~~~` line, or a four-backtick fence holding a three-backtick
+  line, the prose below the block was read as code, and a 61-word paragraph
+  there passed the 60-word limit. An indented code block was read as prose,
+  so 61 words of indented code failed it. A fence now closes only at a run of
+  the character that opened it at least as long as the opening run, and a
+  line indented four or more columns that does not continue a paragraph is
+  skipped as indented code. The sample-output checks close a fence by the
+  same rule. `scripts/check_links.py` gains `code_blocks`, which also returns
+  the lines of indented code blocks; the link targets it reads in the README
+  and the specification are unchanged.
 - **ATX fixture count in `docs/use-cases.md`.** The use cases gave
   `atx-conformance` as 23 fixtures; its `MANIFEST.sha256` on `main` lists 25,
   and each of the 25 carries a `did:opena2a` identifier.

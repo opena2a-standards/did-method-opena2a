@@ -16,6 +16,7 @@ SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 
 import capture_readme
+import check_links
 
 REPO = SCRIPTS.parent
 README = REPO / "README.md"
@@ -31,25 +32,25 @@ VERSION_OR_DATE = re.compile(r"v?[0-9]+\.[0-9]+\.[0-9]+|20[0-9]{2}-[0-9]{2}-[0-9
 ALLOWED_VERSION_LINES: frozenset[str] = frozenset()
 
 MAX_PARAGRAPH_WORDS = 60
-FENCE = re.compile(r"^ {0,3}(```|~~~)")
 # A heading, a list item or a link reference definition starts a block of its own.
 BLOCK_START = re.compile(r"^ {0,3}(#{1,6} |[-*+] |[0-9]+[.)] |\[[^\]]+\]:)")
 
 
 def blocks(text: str) -> list[tuple[int, str]]:
-    """Return (first line number, text) for each block of prose outside fenced code.
+    """Return (first line number, text) for each block of prose outside code blocks.
 
-    A block is a run of non-blank lines; a heading, a list item and a link
-    reference definition each start a new one."""
+    Code blocks are read as scripts/check_links.py reads them: a fence closes
+    only at a run of the character that opened it at least as long as the
+    opening run, and a line indented four or more columns that does not
+    continue a paragraph is indented code. A block is a run of non-blank
+    lines; a heading, a list item and a link reference definition each start
+    a new one."""
+    lines = text.splitlines()
+    fenced, indented = check_links.code_blocks(lines)
     found: list[tuple[int, list[str]]] = []
-    in_fence = False
     current: tuple[int, list[str]] | None = None
-    for number, line in enumerate(text.splitlines(), start=1):
-        if FENCE.match(line):
-            in_fence = not in_fence
-            current = None
-            continue
-        if in_fence or not line.strip():
+    for number, line in enumerate(lines, start=1):
+        if number in fenced or number in indented or not line.strip():
             current = None
             continue
         if current is None or BLOCK_START.match(line):
@@ -69,16 +70,23 @@ ELISION = "..."
 
 
 def fences(lines: list[str]) -> list[tuple[int, int, str, list[str]]]:
-    """Return (opening index, closing index, info string, body lines) for each fenced block."""
+    """Return (opening index, closing index, info string, body lines) for each fenced block.
+
+    Fences are read from the start of the line with the patterns of
+    scripts/check_links.py, and a block closes only at a run of the character
+    that opened it at least as long as the opening run."""
     found = []
-    opening = None
+    opening = run = None
     for index, line in enumerate(lines):
-        if not FENCE.match(line):
-            continue
         if opening is None:
-            opening = index
-        else:
-            found.append((opening, index, lines[opening].strip()[3:].strip(), lines[opening + 1:index]))
+            m = check_links.OPENING_FENCE.match(line)
+            if m:
+                opening, run = index, m.group(1) or m.group(2)
+            continue
+        m = check_links.CLOSING_FENCE.match(line)
+        if m and m.group(1)[0] == run[0] and len(m.group(1)) >= len(run):
+            info = lines[opening].lstrip(" ")[len(run):].strip()
+            found.append((opening, index, info, lines[opening + 1:index]))
             opening = None
     return found
 
@@ -160,6 +168,25 @@ class KeepsParagraphsShort(unittest.TestCase):
         self.assertEqual(blocks(text), [(1, "# Title"), (3, "one two three"),
                                         (6, "- item one"), (7, "- item two")])
 
+    def test_a_fence_closes_only_at_its_own_character_and_length(self):
+        long = " ".join(["w"] * 61)
+        self.assertEqual(blocks(f"```\n~~~\n```\n{long}\n"), [(4, long)])
+        self.assertEqual(blocks(f"~~~\n```\n~~~\n{long}\n"), [(4, long)])
+        self.assertEqual(blocks(f"````\n```\n````\n{long}\n"), [(4, long)])
+        self.assertEqual(blocks("```\none\n``` x\n~~~\n```\ntwo\n"), [(6, "two")])
+
+    def test_indented_code_is_not_prose(self):
+        long = " ".join(["w"] * 61)
+        self.assertEqual(blocks(f"text\n\n    {long}\n"), [(1, "text")])
+        self.assertEqual(blocks(f"# Title\n    {long}\nafter\n"), [(1, "# Title"), (3, "after")])
+        self.assertEqual(blocks(f"- item\n\n      {long}\n"), [(1, "- item")])
+
+    def test_an_indented_line_in_a_paragraph_or_at_a_list_item_content_is_prose(self):
+        def words(text):
+            return [(n, body.split()) for n, body in blocks(text)]
+        self.assertEqual(words("one\n    two\n"), [(1, ["one", "two"])])
+        self.assertEqual(words("-   one\n\n    two\n"), [(1, ["-", "one"]), (3, ["two"])])
+
 
 class ShowsWhatEachCommandPrints(unittest.TestCase):
     def setUp(self):
@@ -216,6 +243,15 @@ class ShowsWhatEachCommandPrints(unittest.TestCase):
         self.assertEqual(shown, sorted(capture_readme.CAPTURES))
         self.assertEqual(sorted(p.stem for p in CAPTURES_DIR.glob("*.txt")), shown)
         self.assertEqual(sorted(p.stem for p in CAPTURES_DIR.glob("*.json")), shown)
+
+
+class Fences(unittest.TestCase):
+    def test_a_fence_closes_only_at_its_own_character_and_length(self):
+        lines = ["````sh", "```", "````", "~~~", "```", "~~~~", "~~~ x", "~~~"]
+        self.assertEqual(fences(lines), [(0, 2, "sh", ["```"]), (3, 5, "", ["```"]), (6, 7, "x", [])])
+
+    def test_a_fence_with_text_after_it_does_not_close_a_block(self):
+        self.assertEqual(fences(["```", "``` x", "```"]), [(0, 2, "", ["``` x"])])
 
 
 class CutFrom(unittest.TestCase):

@@ -302,7 +302,18 @@ def code_block_lines(lines: list) -> set:
     followed as CommonMark reads them, a fence's indentation is counted from
     where the text of the one it is in starts, and a block that is still open
     where its block quote or list item ends is closed there."""
+    return code_blocks(lines)[0]
+
+
+def code_blocks(lines: list) -> tuple:
+    """The numbers of the lines of fenced code blocks, as code_block_lines
+    gives them, and the numbers of the lines of indented code blocks: lines
+    outside a fenced code block that are indented four or more columns from
+    where the text of the block quote or list item they are in starts, or
+    from the start of the line outside one, and do not continue a
+    paragraph."""
     code = set()
+    indented = set()
     # The block quotes and list items open after the last line read, outermost
     # first: None for a block quote, and for a list item how many columns its
     # content starts after where the text of the one it is in starts.
@@ -388,6 +399,7 @@ def code_block_lines(lines: list) -> set:
                 if not paragraph:
                     close(held)
                     leaf = None
+                    indented.add(n)
                 else:
                     definitions = definitions and is_definition(line, start)
                 break
@@ -445,7 +457,7 @@ def code_block_lines(lines: list) -> set:
                 definitions = True
             definitions = definitions and is_definition(line, start)
             break
-    return code
+    return code, indented
 
 
 def prose_urls(block: list) -> list:

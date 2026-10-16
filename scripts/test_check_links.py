@@ -595,6 +595,12 @@ class CodeFences(unittest.TestCase):
         text = "10. a\n> b\n\n    ```\n    https://example.org/x\n    ```\n"
         self.assertEqual(check_links.link_targets(text), [(5, "https://example.org/x")])
 
+    def test_indented_code_lines_are_returned_apart_from_fenced_ones(self):
+        lines = ["text", "    more", "", "    code", "- item", "", "      item code",
+                 "> quote", ">", ">     quote code", "```", "    fenced", "```"]
+        self.assertEqual(check_links.code_blocks(lines), ({11, 12, 13}, {4, 7, 10}))
+        self.assertEqual(check_links.code_block_lines(lines), {11, 12, 13})
+
     def test_html_block_is_read_as_paragraph_text(self):
         # CommonMark ends the list item at the `<div>` line, which opens an
         # HTML block; HTML blocks are not followed here, this script's
