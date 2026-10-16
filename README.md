@@ -129,7 +129,7 @@ The registry replies with a DID Document, `Content-Type: application/did+ld+json
 
 See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves (`agent`, `mcp_server`, `ai_tool`, `llm`, `skill`) plus the registry self-DID. A resolved document still differs from its example where 0.2 differs from what the reference resolver emits. The registry key values are placeholders.
 
-[`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry that the deployment does not serve (both answer `404`). `python3 scripts/check_examples.py` checks the file set, the 0.2 shape and the service URL encoding; with `--live` it also resolves each DID against the reference deployment. It exits 1 on a difference.
+[`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry that the deployment does not serve (both answer `404`). `python3 scripts/check_examples.py` checks the file set, the 0.2 shape and the service URL encoding; with `--live` it also resolves each DID against the reference deployment and compares its `service` and keys. It exits 1 on a difference.
 
 What `python3 scripts/check_examples.py --live` prints ([full output](./docs/captures/check-examples-live.txt)):
 

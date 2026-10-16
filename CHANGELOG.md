@@ -31,6 +31,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   no output under it, when an excerpt is not whole lines of its capture in
   their order, or when a sidecar records another command, another SHA-256 or a
   non-zero exit code.
+- **`python3 scripts/check_examples.py --live` compares keys.** Each resolved
+  document's verification method ids, types and controllers, a JSON Web Key's
+  `kty` and `alg`, its `authentication` and `assertionMethod` lists and its
+  `@context` must match the layout the Implementation status notes of
+  Sections 5.1 and 5.3 record for the reference deployment, and each Ed25519
+  key the registry controls must carry the value of the registry document's
+  `#signing-key`; the run exits 1 otherwise. Before, `--live` compared `id`
+  and `service` only, and exited 0 against a registry document carrying one
+  key or a resource document whose `#registry-key` was another key. Against
+  the reference deployment it exits 0. `docs/examples.md` states that the
+  resolved registry document carries three verification methods where its
+  example carries one.
 
 ### Changed
 

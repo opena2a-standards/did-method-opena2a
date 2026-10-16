@@ -7,8 +7,10 @@ that the conformance suites carry and the deployment does not serve. Offline,
 this checks the file set, the 0.2 shape (Section 5) and the service endpoint
 encoding the deployment emits. `--live` also resolves each DID against the
 reference deployment. A top-level document must answer 200 with the same
-`id` and `service`, and a conformance document must answer 404.
-python3 standard library only.
+`id` and `service`, and its keys must have the layout the Implementation
+status notes of Sections 5.1 and 5.3 record for the deployment, each
+registry-controlled Ed25519 key carrying the registry's `#signing-key` value.
+A conformance document must answer 404. python3 standard library only.
 """
 from __future__ import annotations
 
@@ -37,6 +39,109 @@ SERVED = ("agent", "mcp_server", "ai_tool", "llm", "skill")
 CATALOG_TYPE = {"agent": "a2a_agent"}
 DID_RE = re.compile(r"^did:opena2a:([a-z][a-z_]*):([A-Za-z0-9._/@:-]+)$")
 TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+ED25519 = "Ed25519VerificationKey2020"
+JWK_CONTEXT = "https://w3id.org/security/jwk/v1"
+
+
+def deployment_keys(did: str) -> dict:
+    """The key layout the reference deployment serves for `did`, as key_layout() reads it.
+
+    Spec Section 5.1 (Implementation status) records the resource layout: one
+    registry key, under both relationships. Section 5.3 records the registry
+    layout: #signing-key and #key-v1 with the same Ed25519 key material,
+    #pqc-v1 an ML-DSA-65 JsonWebKey, the jwk/v1 context, #signing-key alone
+    under authentication and all three under assertionMethod.
+    """
+    if did == REGISTRY_DID:
+        return {
+            "@context": CONTEXT + [JWK_CONTEXT],
+            "verificationMethod": [
+                ("#signing-key", ED25519, did),
+                ("#key-v1", ED25519, did),
+                ("#pqc-v1", "JsonWebKey", did, "AKP", "ML-DSA-65"),
+            ],
+            "authentication": ["#signing-key"],
+            "assertionMethod": ["#signing-key", "#key-v1", "#pqc-v1"],
+        }
+    return {
+        "@context": CONTEXT,
+        "verificationMethod": [("#registry-key", ED25519, REGISTRY_DID)],
+        "authentication": ["#registry-key"],
+        "assertionMethod": ["#registry-key"],
+    }
+
+
+def key_layout(doc: dict) -> dict:
+    """The contexts, each verification method's fragment, type and controller
+    (and a JWK's kty and alg), and each relationship's fragments; no key values."""
+    did = doc.get("id", "")
+
+    def fragment(ref):
+        return ref[len(did):] if isinstance(ref, str) and ref.startswith(did + "#") else ref
+
+    def entry(vm):
+        if not isinstance(vm, dict):
+            return vm
+        found = (fragment(vm.get("id")), vm.get("type"), vm.get("controller"))
+        jwk = vm.get("publicKeyJwk")
+        return found + (jwk.get("kty"), jwk.get("alg")) if isinstance(jwk, dict) else found
+
+    def each(field, read):
+        value = doc.get(field, [])
+        return [read(v) for v in value] if isinstance(value, list) else value
+
+    return {
+        "@context": doc.get("@context"),
+        "verificationMethod": each("verificationMethod", entry),
+        "authentication": each("authentication", fragment),
+        "assertionMethod": each("assertionMethod", fragment),
+    }
+
+
+def describe(value) -> str:
+    if isinstance(value, list):
+        return "[" + ", ".join(describe(v) for v in value) + "]"
+    if isinstance(value, tuple):
+        return " ".join(str(v) for v in value)
+    return str(value)
+
+
+def check_live_keys(name: str, live: dict) -> list:
+    did = live.get("id", "")
+    section = "5.3" if did == REGISTRY_DID else "5.1"
+    got, want = key_layout(live), deployment_keys(did)
+    return [f"{name}: live {field} {describe(got[field])} differs from the layout spec Section {section} "
+            f"records for the deployment, {describe(want[field])}"
+            for field in want if got[field] != want[field]]
+
+
+def check_live_key_values(live_docs: list) -> list:
+    """Each registry-controlled Ed25519 key must carry the registry's #signing-key value.
+
+    A verificationMethod that is not a list of objects is left to check_live_keys.
+    """
+    def methods(doc):
+        value = doc.get("verificationMethod", [])
+        return [vm for vm in value if isinstance(vm, dict)] if isinstance(value, list) else []
+
+    registry = next((live for _, live in live_docs if live.get("id") == REGISTRY_DID), None)
+    if registry is None:
+        return []
+    signing_id = f"{REGISTRY_DID}#signing-key"
+    signing = next((vm.get("publicKeyMultibase") for vm in methods(registry) if vm.get("id") == signing_id), None)
+    if not signing:
+        return []
+    problems = []
+    for name, live in live_docs:
+        section = "5.3" if live.get("id") == REGISTRY_DID else "5.1"
+        for vm in methods(live):
+            if vm.get("id") == signing_id:
+                continue
+            if vm.get("controller") == REGISTRY_DID and vm.get("type") == ED25519 \
+                    and vm.get("publicKeyMultibase") != signing:
+                problems.append(f"{name}: {vm.get('id')} does not carry the key {signing_id} carries "
+                                f"(spec Section {section})")
+    return problems
 
 
 def service_endpoints(did: str, rtype: str, rid: str) -> list:
@@ -121,6 +226,8 @@ def resolve(did: str) -> tuple:
                 document = None
             return resp.status, document, None
     except urllib.error.HTTPError as err:
+        # The error is also the response; close it so its body is released.
+        err.close()
         return err.code, None, None
     except OSError as err:
         # URLError (DNS failure, refused connection), TimeoutError and other
@@ -152,6 +259,7 @@ def main() -> int:
         problems += check_doc(name, doc, registered, path.stem if served else None, served)
 
     if args.live:
+        live_docs = []
         for path, doc, served in docs:
             name = str(path.relative_to(ROOT))
             status, live, error = resolve(doc["id"])
@@ -168,8 +276,12 @@ def main() -> int:
                 problems.append(f"{name}: {doc['id']} answered 200 with a body that is not a JSON object")
             elif live.get("id") != doc["id"]:
                 problems.append(f"{name}: resolved id {live.get('id')} differs from {doc['id']}")
-            elif live.get("service") != doc.get("service"):
-                problems.append(f"{name}: service endpoints differ from the live document")
+            else:
+                if live.get("service") != doc.get("service"):
+                    problems.append(f"{name}: service endpoints differ from the live document")
+                problems += check_live_keys(name, live)
+                live_docs.append((name, live))
+        problems += check_live_key_values(live_docs)
 
     for p in problems:
         print(p, file=sys.stderr)
