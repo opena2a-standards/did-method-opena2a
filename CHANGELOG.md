@@ -29,7 +29,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   conformance suite's fixture count to `docs/use-cases.md`, and the full
   notes on each example to `docs/examples.md`. The References list joined a
   new Documentation list. Section 6.7 links `docs/trust-model.md` for the
-  side-by-side comparison of trust anchors.
+  side-by-side comparison of trust anchors. The README header states the
+  registration and the method's scope without the merge date or the AIP
+  revision, which the specification's Status of this document section
+  carries, and the sentence on what a resolved DID Document carries opens the
+  Resolution section. `scripts/test_readme.py` fails when a README line holds
+  a version or a date, or a README paragraph runs over 60 words.
 
 ### Fixed
 

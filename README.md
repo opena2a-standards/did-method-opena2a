@@ -4,9 +4,9 @@
 
 The `did:opena2a` Decentralized Identifier method specification.
 
-**W3C registration:** registered in the W3C DID Extensions registry, [w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717) (merged 2026-07-04).
+**W3C registration:** registered in the W3C DID Extensions registry, [w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717).
 
-A `did:opena2a` DID names a resource registered in an [OpenA2A Registry][registry]: an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or the registry itself. Resolution returns a [W3C DID Document][did-core] that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose service endpoints expose trust lookup, signed trust proofs, and trust badges.
+A `did:opena2a` DID names a resource registered in an [OpenA2A Registry][registry]: an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or the registry itself.
 
 ```
 did:opena2a:registry:opena2a.org
@@ -15,7 +15,7 @@ did:opena2a:agent:agent_conformance_test_001
 did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem
 ```
 
-`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a`; see AIP-SPEC 1.2.0-draft Section 3.2 (unchanged from 1.1.0-draft).
+`did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family, used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a`. The specification's [Status of this document](./did-method-opena2a.md#status-of-this-document) cites the AIP revision and section that say so.
 
 ## Specification
 
@@ -58,6 +58,8 @@ What you can check yourself: the specification is [`did-method-opena2a.md`](./di
 The use cases in full, with each suite's fixture count: [`docs/use-cases.md`](./docs/use-cases.md).
 
 ## Resolution
+
+Resolution returns a [W3C DID Document][did-core] that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose service endpoints expose trust lookup, signed trust proofs, and trust badges.
 
 A `did:opena2a` DID is resolved by HTTP `GET` against the registry that issued it. Against the reference deployment:
 
