@@ -34,7 +34,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   revision, which the specification's Status of this document section
   carries, and the sentence on what a resolved DID Document carries opens the
   Resolution section. `scripts/test_readme.py` fails when a README line holds
-  a version or a date, or a README paragraph runs over 60 words.
+  a three-part version such as 1.2.0 or a date written as 2026-07-04, or a
+  README paragraph runs over 60 words.
 
 ### Fixed
 

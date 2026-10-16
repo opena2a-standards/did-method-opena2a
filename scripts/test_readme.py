@@ -12,10 +12,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 README = REPO / "README.md"
 
-# A version or a date in the README goes stale when the specification or its
-# registration moves on; the specification and docs/status.md carry them. A
-# live badge or a pinned line the reader copies may hold one: such a line is
-# listed here exactly as written.
+# A three-part version such as 1.2.0 or a date written as 2026-07-04 in the
+# README goes stale when the specification or its registration moves on; the
+# specification and docs/status.md carry them. A live badge or a pinned line
+# the reader copies may hold one: such a line is listed here exactly as
+# written. A two-part revision such as 0.2, or a date written in words, does
+# not match.
 VERSION_OR_DATE = re.compile(r"v?[0-9]+\.[0-9]+\.[0-9]+|20[0-9]{2}-[0-9]{2}-[0-9]{2}")
 ALLOWED_VERSION_LINES: frozenset[str] = frozenset()
 
