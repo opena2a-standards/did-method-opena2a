@@ -61,6 +61,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Resolution section. `scripts/test_readme.py` fails when a README line holds
   a three-part version such as 1.2.0 or a date written as 2026-07-04, or a
   README paragraph runs over 60 words.
+- **README shorter.** The Use cases section left the README; its text is in
+  `docs/use-cases.md`, and its two resolution commands with their sample
+  output joined the Resolution section, followed by one sentence on where the
+  reference resolver stops. The Conformance section's suite list and signature
+  coverage moved, as written, to the new `docs/conformance.md`. The notes on
+  each example stay in `docs/examples.md`, and the sentence on the reply's
+  media type and cache header in `docs/status.md`. The Documentation list
+  holds 9 entries.
 
 ### Fixed
 
