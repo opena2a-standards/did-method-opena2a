@@ -29,10 +29,33 @@ Your service receives a request from software that says it is the dispatch agent
 
 `did:opena2a` gives the agent a name that resolves. An HTTP `GET` against the registry that issued the name returns a DID Document carrying the subject's keys and the endpoints where its trust record lives, so the receiving side has something to check instead of something to believe.
 
-What you can do today: resolve the reference registry's own DID.
+What you can do today: resolve the reference registry's own DID (`jq .` only formats the reply).
 
 ```sh
-curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
+curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org | jq .
+```
+
+What `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org | jq .` prints, trimmed ([full output](./docs/captures/resolve-registry.txt)):
+
+```
+{
+...
+  "id": "did:opena2a:registry:opena2a.org",
+...
+  "authentication": [
+    "did:opena2a:registry:opena2a.org#signing-key"
+  ],
+...
+  "service": [
+    {
+      "id": "did:opena2a:registry:opena2a.org#trust-api",
+      "type": "TrustAPI",
+      "serviceEndpoint": "https://api.oa2a.org/api/v1/trust/query"
+    },
+...
+  ],
+...
+}
 ```
 
 Where it stops today: the reference resolver still emits the 0.1 document shape. For a resource DID it publishes the registry's signing key and not the subject's own key, so a verifier cannot yet use the resolved document to check that the caller holds the key behind the name.
@@ -48,7 +71,32 @@ MCP servers are a `did:opena2a` resource type. The resolved document carries ser
 What you can do today:
 
 ```sh
-curl "https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem"
+curl -s 'https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem' | jq .
+```
+
+What `curl -s 'https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem' | jq .` prints, trimmed ([full output](./docs/captures/resolve-mcp-server.txt)):
+
+```
+{
+...
+  "verificationMethod": [
+    {
+      "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#registry-key",
+      "type": "Ed25519VerificationKey2020",
+      "controller": "did:opena2a:registry:opena2a.org",
+...
+  "service": [
+    {
+      "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#trust-lookup",
+      "type": "TrustLookup",
+...
+      "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#trust-proof",
+      "type": "TrustProof",
+...
+      "id": "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem#badge",
+      "type": "TrustBadge",
+...
+}
 ```
 
 Where it stops today: a `did:opena2a` identifier does not say which registry issued it, and the reference deployment does not yet emit the `issuingRegistry` resolution metadata that revision 0.2 defines, so a verifier pins its registry by configuration.
@@ -63,8 +111,16 @@ Resolution returns a [W3C DID Document][did-core] that carries the subject's own
 
 A `did:opena2a` DID is resolved by HTTP `GET` against the registry that issued it. Against the reference deployment:
 
+```sh
+curl -si https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
-curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
+
+What `curl -si https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org` prints, trimmed ([full output](./docs/captures/resolve-registry-headers.txt)):
+
+```
+content-type: application/did+ld+json
+...
+cache-control: public, max-age=300
 ```
 
 The registry replies with a DID Document, `Content-Type: application/did+ld+json`, and a 5-minute cache header (spec Section 4.2).
@@ -74,6 +130,12 @@ The registry replies with a DID Document, `Content-Type: application/did+ld+json
 See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves (`agent`, `mcp_server`, `ai_tool`, `llm`, `skill`) plus the registry self-DID. A resolved document still differs from its example where 0.2 differs from what the reference resolver emits. The registry key values are placeholders.
 
 [`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry that the deployment does not serve (both answer `404`). `python3 scripts/check_examples.py` checks the file set, the 0.2 shape and the service URL encoding; with `--live` it also resolves each DID against the reference deployment. It exits 1 on a difference.
+
+What `python3 scripts/check_examples.py --live` prints ([full output](./docs/captures/check-examples-live.txt)):
+
+```
+examples match: 6 served, 2 conformance, resolved against the reference deployment
+```
 
 How each example compares with what the deployment returns: [`docs/examples.md`](./docs/examples.md).
 
@@ -94,6 +156,14 @@ Each suite ships reference verifiers in Go and Python. Fixture bytes are pinned 
 The ATX suite additionally pins RFC 8785 (JCS) canonical-bytes agreement across independent Go, Python, and TypeScript canonicalizers (`jcs-vectors/`).
 
 This repository carries resolution vectors for the resolved-`id` check of spec Section 6.5 in [`vectors/`](./vectors/), including a negative vector a verifier must reject. Run the reference check over them with `python3 scripts/check_vectors.py`.
+
+What `python3 scripts/check_vectors.py` prints ([full output](./docs/captures/check-vectors.txt)):
+
+```
+ok    vectors/registry-self.json: accept
+ok    vectors/registry-substitution.json: reject resolved-id-mismatch
+2 vectors, 0 failures
+```
 
 ## Documentation
 

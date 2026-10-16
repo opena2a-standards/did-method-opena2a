@@ -1,0 +1,6 @@
+{
+  "command": "curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org | jq .",
+  "exitCode": 0,
+  "capturedAt": "2026-10-16T01:04:48Z",
+  "sha256": "72baefff1d4b64265eed03168a22326760a03d1eb25a31b317c871706f977b46"
+}
