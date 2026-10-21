@@ -54,6 +54,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   no output under it, when an excerpt is not whole lines of its capture in
   their order, or when a sidecar records another command, another SHA-256 or a
   non-zero exit code.
+- **`python3 scripts/check_examples.py --live` resolves the percent-encoded
+  form.** A served example DID whose `resource-id` holds `/` or `@` (the `llm`
+  and `mcp_server` examples) is also resolved in the percent-encoded
+  serialization of Section 3.1.1, and the run exits 1 unless that request is
+  answered `200` with the document the unescaped form resolves to (Sections
+  3.1.2 and 4.2). Against the reference deployment it exits 0.
+  `docs/examples.md` states the check.
 - **`python3 scripts/check_examples.py --live` compares keys.** Each resolved
   document's verification method ids, types and controllers, a JSON Web Key's
   `kty` and `alg`, its `authentication` and `assertionMethod` lists and its
@@ -382,6 +389,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **README.** The "resolve the reference registry's own DID" use case says that
   every `did:opena2a:registry:<authority>` DID currently resolves to that same
   document, and that a verifier rejects that answer with the Section 6.5 check.
+- **Section 4.2 implementation status note, re-measured 2026-10-21.** The
+  reference deployment resolves the percent-encoded serialization of Section
+  3.1.1 to the same DID Document as the unescaped form: both requests are
+  answered `200`, the two response bodies are the same bytes, and the `id` is
+  the canonical form. The note said the encoded form was answered `404`, as
+  measured on 2026-10-11. It now also records that the encoded form written
+  with a lowercase hexadecimal digit is answered with the same bytes, and that
+  the encoded form written with `%25` in place of each `%`, a `resource-id`
+  that does not decode under Section 3.1.2, is answered `400`.
 
 ## [0.3.0] - 2026-10-11
 
