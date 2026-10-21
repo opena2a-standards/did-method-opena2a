@@ -19,7 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   answers `GET` and `HEAD` on `/api/v1/did/<did>`; `resolve` prints one reply
   and `serve` answers HTTP on `127.0.0.1`, takes a `--port` from 0 to 65535,
   and exits 2 after one line naming the address and the reason when it
-  cannot listen there. python3 standard library only.
+  cannot listen there; a `--host` holding a character other than visible
+  ASCII, such as U+200E or a newline, appears in that line as Python's
+  `ascii()` of it. python3 standard library only.
   `scripts/test_reference_resolver.py` compares its parser with the grammar
   compiled from Section 3.1 on `did:opena2a:` followed by every string of up
   to five characters over a nine-character alphabet, on each ASCII character

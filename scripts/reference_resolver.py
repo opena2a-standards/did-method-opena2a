@@ -75,8 +75,9 @@ it, and exits 0 when the status is 200, 1 otherwise. serve answers HTTP on
 127.0.0.1:8080 unless told otherwise (--port takes 0 to 65535); it serves
 plain HTTP, and Section 6.2 requires TLS in front of it. Both exit 2 when
 the records file does not load, and serve exits 2, after one line naming
-the address and the reason, when it cannot listen on the address. python3
-standard library only.
+the address and the reason, when it cannot listen on the address; a --host
+holding a character other than visible ASCII appears there as Python's
+ascii() of it. python3 standard library only.
 """
 from __future__ import annotations
 
@@ -479,6 +480,13 @@ def handler_for(registry: Registry, log: bool = True) -> type:
     return Handler
 
 
+def shown_host(host: str) -> str:
+    """host as given when it is visible ASCII, otherwise its ascii(), which escapes the characters a reader cannot see."""
+    if host and all("!" <= ch <= "~" for ch in host):
+        return host
+    return ascii(host)
+
+
 def serve(registry: Registry, host: str, port: int) -> int:
     """Answer HTTP on host:port until interrupted; 0, or 2 after one line on stderr when it cannot listen there."""
     handler = handler_for(registry)
@@ -488,7 +496,7 @@ def serve(registry: Registry, host: str, port: int) -> int:
         # OSError: the port is taken or the host is not an address of this machine. OverflowError: a port
         # outside 0-65535, which the command line refuses before this. TypeError: a host the IDNA codec cannot
         # encode, such as one carrying an invisible character.
-        print(f"cannot listen on {host}:{port}: {exc}", file=sys.stderr)
+        print(f"cannot listen on {shown_host(host)}:{port}: {exc}", file=sys.stderr)
         return 2
     print(f"resolving for {registry.did} at http://{host}:{server.server_port}{RESOLVE_PATH}<did>", file=sys.stderr)
     try:
