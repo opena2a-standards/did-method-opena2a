@@ -10,9 +10,10 @@ reference deployment. A top-level document must answer 200 with the same
 `id` and `service`, and its keys must have the layout the Implementation
 status notes of Sections 5.1 and 5.3 record for the deployment, each
 registry-controlled Ed25519 key carrying the registry's `#signing-key` value.
-A conformance document must answer 404, and the DID that the not-found note
-of Section 8.4 names must answer 404 with the body that note records.
-python3 standard library only.
+A conformance document must answer 404, and so must each registry DID the
+Implementation status note of Section 4.2 lists, none of them the registry's
+self-identifier; the DID that the not-found note of Section 8.4 names must
+answer 404 with the body that note records. python3 standard library only.
 """
 from __future__ import annotations
 
@@ -42,6 +43,19 @@ CATALOG_TYPE = {"agent": "a2a_agent"}
 # Spec Section 8.4 records the deployment's 404 reply to this DID, which it
 # has no record of; `--live` compares the reply with not_found_body().
 NOT_FOUND_DID = "did:opena2a:agent:agent_conformance_test_001"
+SPEC = "did-method-opena2a.md"
+# Registry DIDs other than the self-identifier that the deployment has not
+# registered. Section 4.2 requires 404 for each, and its Implementation status
+# note records 404 for these (measured 2026-10-21; on 2026-10-11 the first three
+# answered 200 with the registry's own DID Document).
+UNREGISTERED_REGISTRIES = (
+    "did:opena2a:registry:evil.test",
+    "did:opena2a:registry:example.com",
+    "did:opena2a:registry:api.oa2a.org",
+    "did:opena2a:registry:OPENA2A.ORG",
+    "did:opena2a:registry:OpenA2A.org",
+    "did:opena2a:registry:opena2a.org.",
+)
 DID_RE = re.compile(r"^did:opena2a:([a-z][a-z_]*):([A-Za-z0-9._/@:-]+)$")
 TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 ED25519 = "Ed25519VerificationKey2020"
@@ -318,6 +332,13 @@ def main() -> int:
                 live_docs.append((name, live))
         problems += check_live_key_values(live_docs)
         problems += check_not_found(NOT_FOUND_DID)
+        for did in UNREGISTERED_REGISTRIES:
+            status, live, error = resolve(did)
+            if error:
+                problems.append(f"{SPEC}: {did}: {error}")
+            elif status != 404:
+                document = f" with the document of {live['id']}" if isinstance(live, dict) and "id" in live else ""
+                problems.append(f"{SPEC}: {did} answered {status}{document}, expected 404 (Section 4.2)")
 
     for p in problems:
         print(p, file=sys.stderr)

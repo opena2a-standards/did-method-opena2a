@@ -77,6 +77,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Registry DIDs other than the self-identifier, re-measured (Sections 4.2
+  and 8.4).** On 2026-10-21 (UTC) the reference deployment answered
+  `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and
+  `did:opena2a:registry:api.oa2a.org` with `404` and a body naming the
+  requested resource, such as
+  `{"error":"resource not found: registry/evil.test"}`; on 2026-10-11 it
+  answered them with `200` and its own registry DID Document. The
+  implementation status note of Section 4.2, the Status of this document
+  paragraph, the README, `docs/status.md` and `docs/use-cases.md` said the
+  deployment answers every `did:opena2a:registry:<authority>` DID with that
+  document. All but the README now give the 2026-10-21 measurement, and the
+  Section 4.2 note keeps the 2026-10-11 substitution that the negative
+  resolution vector records; the README drops the claim from where the
+  reference resolver stops. Section 4.2 and Section 8.4 give the body for the
+  unregistered `agent` DID `did:opena2a:agent:agent_conformance_test_001`,
+  `{"error":"resource not found: agent/agent_conformance_test_001"}`, in
+  place of `{"error":"package not found: registry package not found"}`.
+  `python3 scripts/check_examples.py --live` also resolves the six registry
+  DIDs the Section 4.2 note lists and exits 1 when one answers other than
+  `404`.
 - **`scripts/test_readme.py` reads code blocks as `scripts/check_links.py`
   does.** The word-limit test flipped its fenced-code state at any line that
   starts with three backticks or three tildes, so after a backtick fence

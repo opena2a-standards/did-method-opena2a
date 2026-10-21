@@ -99,7 +99,7 @@ What `curl -s 'https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcont
 }
 ```
 
-Where it stops today: the reference resolver still emits the 0.1 document shape, answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document, and does not yet emit `issuingRegistry` resolution metadata. What a verifier does about each: [`docs/use-cases.md`](./docs/use-cases.md).
+Where it stops today: the reference resolver still emits the 0.1 document shape and does not yet emit `issuingRegistry` resolution metadata. What a verifier does about each: [`docs/use-cases.md`](./docs/use-cases.md).
 
 ## Examples
 
