@@ -481,11 +481,13 @@ def handler_for(registry: Registry, log: bool = True) -> type:
 
 def serve(registry: Registry, host: str, port: int) -> int:
     """Answer HTTP on host:port until interrupted; 0, or 2 after one line on stderr when it cannot listen there."""
+    handler = handler_for(registry)
     try:
-        server = ThreadingHTTPServer((host, port), handler_for(registry))
-    except (OSError, OverflowError) as exc:
+        server = ThreadingHTTPServer((host, port), handler)
+    except (OSError, OverflowError, TypeError) as exc:
         # OSError: the port is taken or the host is not an address of this machine. OverflowError: a port
-        # outside 0-65535, which the command line refuses before this.
+        # outside 0-65535, which the command line refuses before this. TypeError: a host the IDNA codec cannot
+        # encode, such as one carrying an invisible character.
         print(f"cannot listen on {host}:{port}: {exc}", file=sys.stderr)
         return 2
     print(f"resolving for {registry.did} at http://{host}:{server.server_port}{RESOLVE_PATH}<did>", file=sys.stderr)

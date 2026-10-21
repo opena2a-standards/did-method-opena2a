@@ -540,6 +540,22 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(len(err.splitlines()), 1, err)
         self.assertTrue(err.startswith(f"cannot listen on 127.0.0.1:{port}: "), err)
 
+    def test_serve_reports_a_host_it_cannot_encode_in_one_line(self):
+        # The socket module raises TypeError, not OSError, for a host the IDNA codec refuses: an invisible mark
+        # copied with the address, the byte 0xFF as the command line decodes it, an empty label. The held port
+        # keeps serve from answering should one of them encode.
+        hosts = ("127.0.0.1\N{LEFT-TO-RIGHT MARK}", "\N{RIGHT-TO-LEFT OVERRIDE}127.0.0.1",
+                 "127.0.0.1\N{REPLACEMENT CHARACTER}", "127.0.0.1\udcff", "\N{LATIN SMALL LETTER A WITH DIAERESIS}..b")
+        with socket.socket() as holder:
+            holder.bind(("127.0.0.1", 0))
+            holder.listen()
+            port = str(holder.getsockname()[1])
+            for host in hosts:
+                code, out, err = self.run_main("--records", str(self.path), "serve", "--host", host, "--port", port)
+                self.assertEqual((code, out), (2, ""), ascii(host))
+                self.assertEqual(len(err.splitlines()), 1, ascii(err))
+                self.assertTrue(err.startswith(f"cannot listen on {host}:{port}: "), ascii(err))
+
     def test_serve_refuses_a_port_outside_0_to_65535(self):
         for port in ("65536", "-1", "x"):
             err = io.StringIO()
