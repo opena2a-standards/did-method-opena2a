@@ -10,6 +10,7 @@ import contextlib
 import io
 import itertools
 import json
+import socket
 import sys
 import tempfile
 import threading
@@ -528,6 +529,31 @@ class CommandLine(unittest.TestCase):
         self.assertIn("baseUrl", err)
         code, _, err = self.run_main("--records", str(self.path) + ".missing", "resolve", AGENT)
         self.assertEqual(code, 2)
+
+    def test_serve_reports_an_address_it_cannot_listen_on_in_one_line(self):
+        with socket.socket() as holder:
+            holder.bind(("127.0.0.1", 0))
+            holder.listen()
+            port = holder.getsockname()[1]
+            code, out, err = self.run_main("--records", str(self.path), "serve", "--port", str(port))
+        self.assertEqual((code, out), (2, ""))
+        self.assertEqual(len(err.splitlines()), 1, err)
+        self.assertTrue(err.startswith(f"cannot listen on 127.0.0.1:{port}: "), err)
+
+    def test_serve_refuses_a_port_outside_0_to_65535(self):
+        for port in ("65536", "-1", "x"):
+            err = io.StringIO()
+            with self.assertRaises(SystemExit) as caught, contextlib.redirect_stderr(err):
+                rr.main(["--records", str(self.path), "serve", "--port", port])
+            self.assertEqual(caught.exception.code, 2, port)
+            self.assertIn("argument --port", err.getvalue())
+        # Called directly, serve() reports the port it cannot bind the same way.
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            code = rr.serve(registry(), "127.0.0.1", 65536)
+        self.assertEqual(code, 2)
+        self.assertEqual(len(err.getvalue().splitlines()), 1, err.getvalue())
+        self.assertTrue(err.getvalue().startswith("cannot listen on 127.0.0.1:65536: "), err.getvalue())
 
 
 if __name__ == "__main__":

@@ -72,9 +72,11 @@ Each key must be an Ed25519 publicKeyMultibase value.
 resolve prints the reply to a resolution request for DID, which it takes as
 a DID string rather than a URL path, so only the Section 3.1.2 step decodes
 it, and exits 0 when the status is 200, 1 otherwise. serve answers HTTP on
-127.0.0.1:8080 unless told otherwise; it serves plain HTTP, and Section 6.2
-requires TLS in front of it. Both exit 2 when the records file does not
-load. python3 standard library only.
+127.0.0.1:8080 unless told otherwise (--port takes 0 to 65535); it serves
+plain HTTP, and Section 6.2 requires TLS in front of it. Both exit 2 when
+the records file does not load, and serve exits 2, after one line naming
+the address and the reason, when it cannot listen on the address. python3
+standard library only.
 """
 from __future__ import annotations
 
@@ -477,8 +479,15 @@ def handler_for(registry: Registry, log: bool = True) -> type:
     return Handler
 
 
-def serve(registry: Registry, host: str, port: int) -> None:
-    server = ThreadingHTTPServer((host, port), handler_for(registry))
+def serve(registry: Registry, host: str, port: int) -> int:
+    """Answer HTTP on host:port until interrupted; 0, or 2 after one line on stderr when it cannot listen there."""
+    try:
+        server = ThreadingHTTPServer((host, port), handler_for(registry))
+    except (OSError, OverflowError) as exc:
+        # OSError: the port is taken or the host is not an address of this machine. OverflowError: a port
+        # outside 0-65535, which the command line refuses before this.
+        print(f"cannot listen on {host}:{port}: {exc}", file=sys.stderr)
+        return 2
     print(f"resolving for {registry.did} at http://{host}:{server.server_port}{RESOLVE_PATH}<did>", file=sys.stderr)
     try:
         server.serve_forever()
@@ -486,6 +495,18 @@ def serve(registry: Registry, host: str, port: int) -> None:
         pass
     finally:
         server.server_close()
+    return 0
+
+
+def port_number(text: str) -> int:
+    """The --port value: an integer from 0 to 65535."""
+    try:
+        port = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an integer") from None
+    if not 0 <= port <= 65535:
+        raise argparse.ArgumentTypeError(f"{port} is outside 0-65535")
+    return port
 
 
 def main(argv: list | None = None) -> int:
@@ -497,7 +518,8 @@ def main(argv: list | None = None) -> int:
     resolve.add_argument("did", metavar="DID")
     listen = commands.add_parser("serve", help="answer HTTP requests until interrupted")
     listen.add_argument("--host", default="127.0.0.1", help="the IPv4 address to listen on (default: 127.0.0.1)")
-    listen.add_argument("--port", type=int, default=8080, help="the port to listen on (default: 8080)")
+    listen.add_argument("--port", type=port_number, default=8080, metavar="PORT",
+                        help="the port to listen on, 0 to 65535 (default: 8080)")
     args = ap.parse_args(argv)
     try:
         registry = Registry.from_json(json.loads(args.records.read_text(encoding="utf-8")))
@@ -505,8 +527,7 @@ def main(argv: list | None = None) -> int:
         print(f"{args.records}: {exc}", file=sys.stderr)
         return 2
     if args.command == "serve":
-        serve(registry, args.host, args.port)
-        return 0
+        return serve(registry, args.host, args.port)
     status, headers, body = registry.resolution_reply(args.did)
     print(f"{status} {HTTPStatus(status).phrase}")
     for name, value in headers:
