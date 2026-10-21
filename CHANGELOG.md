@@ -115,6 +115,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Discovery request on the authority host (Section 8.4).** The Discovery
+  bullet now gives `GET https://opena2a.org/.well-known/opena2a`, on the host
+  the self-identifier `did:opena2a:registry:opena2a.org` names (Sections 3.4
+  and 8.3). Measured 2026-10-21 (UTC), it answers `307` with `Location:
+  https://api.oa2a.org/.well-known/opena2a`, which serves the discovery
+  document with `"did:opena2a"` in `supportedMethods`. (#22)
+
 - **Registry DIDs other than the self-identifier, re-measured (Sections 4.2
   and 8.4).** On 2026-10-21 (UTC) the reference deployment answered
   `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and

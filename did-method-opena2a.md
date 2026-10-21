@@ -485,7 +485,7 @@ A registry exposes a discovery document at the well-known path `/.well-known/ope
 The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.org`. Its self-identifier is `did:opena2a:registry:opena2a.org`. The concrete surface, as of the source read on 2026-09-08:
 
 - Resolution: `GET https://api.oa2a.org/api/v1/did/<did>`, replying with `Content-Type: application/did+ld+json` (Section 4.2).
-- Discovery: `GET https://api.oa2a.org/.well-known/opena2a`.
+- Discovery: `GET https://opena2a.org/.well-known/opena2a`, on the authority host the self-identifier names (Sections 3.4 and 8.3). Measured 2026-10-21 UTC, it answers `307` with `Location: https://api.oa2a.org/.well-known/opena2a`, which serves the document (`200`, `application/json`, `supportedMethods` containing `"did:opena2a"`).
 - Registry key rotation and revocation: `POST /internal/keys/rotate`, `POST /internal/keys/revoke` (operator-only).
 - Trust-proof revocation: `POST /api/v1/trust/revoke`; revocation list: `GET /api/v1/trust/revocations`.
 - Offline bundle: `GET /api/v1/trust/bundle`, refreshed hourly.
