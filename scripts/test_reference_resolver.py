@@ -554,7 +554,26 @@ class CommandLine(unittest.TestCase):
                 code, out, err = self.run_main("--records", str(self.path), "serve", "--host", host, "--port", port)
                 self.assertEqual((code, out), (2, ""), ascii(host))
                 self.assertEqual(len(err.splitlines()), 1, ascii(err))
-                self.assertTrue(err.startswith(f"cannot listen on {host}:{port}: "), ascii(err))
+                self.assertTrue(err.startswith(f"cannot listen on {ascii(host)}:{port}: "), ascii(err))
+
+    def test_serve_shows_a_host_with_an_invisible_character_escaped_on_one_line(self):
+        # A newline, a tab or a trailing space in --host fails to resolve; the report escapes it rather than
+        # printing it, so the line does not break and the character is visible.
+        hosts = ("127.0.0.1\n", "127.0.0.1\r\n:x", "127.0.0.1\t", "127.0.0.1 ", "\x00127.0.0.1")
+        with socket.socket() as holder:
+            holder.bind(("127.0.0.1", 0))
+            holder.listen()
+            port = str(holder.getsockname()[1])
+            for host in hosts:
+                code, out, err = self.run_main("--records", str(self.path), "serve", "--host", host, "--port", port)
+                self.assertEqual((code, out), (2, ""), ascii(host))
+                self.assertEqual(len(err.splitlines()), 1, ascii(err))
+                self.assertTrue(err.isascii(), ascii(err))
+                self.assertTrue(err.startswith(f"cannot listen on {ascii(host)}:{port}: "), ascii(err))
+        self.assertEqual(rr.shown_host("127.0.0.1"), "127.0.0.1")
+        self.assertEqual(rr.shown_host("::1"), "::1")
+        self.assertEqual(rr.shown_host("127.0.0.1\N{LEFT-TO-RIGHT MARK}"), "'127.0.0.1\\u200e'")
+        self.assertEqual(rr.shown_host(""), "''")
 
     def test_serve_refuses_a_port_outside_0_to_65535(self):
         for port in ("65536", "-1", "x"):
