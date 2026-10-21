@@ -274,6 +274,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   space, each other control or format character is written as its Python
   escape, as in `request failed: BadStatusLine: \x1b[31mred`, and a text
   longer than 200 characters is cut to 200 or fewer and ends in `...`.
+- **`scripts/check_links.py` skips indented code blocks and reads a code span
+  across the lines of its paragraph.** A URL in an indented code block, as on
+  a line of four spaces and `curl https://example.org/x`, was checked as a
+  link, though CommonMark renders that line as code; the lines of indented
+  code blocks, which `code_blocks` returned, are now skipped as the lines of
+  fenced ones are. A code span was read one line at a time, so a span opened
+  on one line and closed on the next, after `https://example.org/x`, gave the
+  target `https://example.org/x` with the closing backtick at its end. A code
+  span is now read as CommonMark reads one: a run of backticks opens one that
+  the next run of as many backticks in the same paragraph closes, across its
+  lines, in a block quote or a list item too. A run with no such run after it
+  is text, and a backtick escaped with a backslash opens none; before, a run
+  of any length closed a span, and an escaped backtick opened one. The
+  targets read from the README and the spec are unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run

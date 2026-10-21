@@ -3,8 +3,17 @@
 
 Link targets are taken from inline links `[text](target)`, reference
 definitions `[label]: target`, autolinks `<https://...>` and bare `http(s)://`
-URLs in prose, which GitHub also renders as links, outside fenced code blocks
-and inline code spans. A fenced code block opens at a run of three or more
+URLs in prose, which GitHub also renders as links, outside fenced and
+indented code blocks and code spans. An indented code block is a run of lines
+indented four or more columns from where the text of the block quote or list
+item they are in starts, or from the start of the line outside one, that do
+not continue a paragraph. A code span is read as CommonMark reads one: a run
+of backticks opens one that the next run of as many backticks in the same
+paragraph closes, across the lines of that paragraph; a run with no such run
+after it is text, and a backtick escaped with a backslash opens none. A link
+reference definition on a line of its own is not part of the paragraph's
+text, and a line outside a paragraph, such as an ATX heading, is read on its
+own. A fenced code block opens at a run of three or more
 backticks or tildes, and a run of backticks with a backtick after it on its
 line opens none. Block quotes and list items are read as CommonMark reads
 them, and a fence holds at most three spaces of indentation, counted from
@@ -54,9 +63,10 @@ so an unclosed `x="https://...` in prose is not read into the line below. A
 start tag is a `<`, a tag name and whitespace or `/`, then an attribute part
 that a `>` closes, holding no other `<` or `>` outside its quoted attribute
 values; a `<` or `>` in a code span, autolink or inline link counts. The line
-break at the end of the last line before a blank line, a fenced code block or
-the end of the file does not count as that whitespace, so a quote that ends
-that line does not close a value whose URL starts on an earlier line. A
+break at the end of the last line before a blank line, a fenced or indented
+code block or the end of the file does not count as that whitespace, so a
+quote that ends that line does not close a value whose URL starts on an
+earlier line. A
 value's character references are decoded with html.unescape, except that a
 named reference without its `;` is kept as written when `=` or an ASCII letter or
 digit follows it, as a browser keeps `&sect` in `&section=2`. Leading and
@@ -108,7 +118,9 @@ DEST = r"(?:[^()\s]|\([^()\s]*\))+"
 INLINE = re.compile(rf"\]\(({DEST})\)")
 REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*<?([^>\s]+)>?")
 AUTOLINK = re.compile(r"<(https?://[^<>\s]+)>")
-CODE_SPAN = re.compile(r"`+[^`]*`+")
+# A run of backticks, which may open or close a code span (code_spans).
+TICKS = re.compile(r"`+")
+NOT_NEWLINE = re.compile(r"[^\n]")
 # The whole of an inline link, text included, so a URL used as link text is
 # not read a second time as a bare URL.
 INLINE_SPAN = re.compile(rf"\[[^\[\]]*\]\({DEST}\)")
@@ -134,12 +146,12 @@ LEADING_ON_LINE = rf"(?:[\x00-\x09\x0b-\x20]|{LEADING_CHARACTER})"
 # only when its `=` is in the attribute part of a start tag (START_TAG), so an
 # unclosed value in prose does not take a later quote, such as the one in "the
 # users' guide" or the opening quote of "hi", as its own. A block ends at a
-# blank line, a fenced code block or the end of the file, and its lines are
-# joined without a line break after the last, so a quote that ends its last
-# line does not close a value whose URL starts on an earlier line. A value is
-# read only to the first quote of its own kind, and the quote that opens the
-# next value of that kind is one, so only the last value of each kind can be
-# read to the end of its block of lines.
+# blank line, a fenced or indented code block or the end of the file, and its
+# lines are joined without a line break after the last, so a quote that ends
+# its last line does not close a value whose URL starts on an earlier line. A
+# value is read only to the first quote of its own kind, and the quote that
+# opens the next value of that kind is one, so only the last value of each
+# kind can be read to the end of its block of lines.
 URL = re.compile(rf"""=\s*(["'])(?:{LEADING_ON_LINE}*(https?://(?:(?!\1)[^\n])*)(?=\1)"""
                  rf"""|{LEADING}*(https?://(?:(?!\1).)*)(?=\1(?:\s|/?>)))\1"""
                  rf"""|https?://[^\s<]+""", re.DOTALL)
@@ -312,8 +324,21 @@ def code_blocks(lines: list) -> tuple:
     where the text of the block quote or list item they are in starts, or
     from the start of the line outside one, and do not continue a
     paragraph."""
+    return read_blocks(lines)[:2]
+
+
+def read_blocks(lines: list) -> tuple:
+    """The line numbers of fenced and of indented code blocks, as code_blocks
+    gives them, and a dict that maps the number of each line holding text of
+    a paragraph to the number of the first such line of that paragraph. A
+    link reference definition on a line of its own, at the start of a
+    paragraph, is not text of it."""
     code = set()
     indented = set()
+    paragraphs = {}
+    # The number of the first line of text of the paragraph open above the
+    # line read, or None while it holds only definitions.
+    first = None
     # The block quotes and list items open after the last line read, outermost
     # first: None for a block quote, and for a list item how many columns its
     # content starts after where the text of the one it is in starts.
@@ -335,6 +360,14 @@ def code_blocks(lines: list) -> tuple:
         """End the containers after the first `held`."""
         del containers[held:]
         del quotes[bisect.bisect_left(quotes, held):]
+
+    def read_text(n: int, line: str, start: int) -> None:
+        """Read line n, from `start`, as a line of the open paragraph."""
+        nonlocal definitions, first
+        definitions = definitions and is_definition(line, start)
+        if not definitions:
+            first = first or n
+            paragraphs[n] = first
 
     for n, line in enumerate(lines, 1):
         # A tab reaches the next column that is a multiple of four.
@@ -401,7 +434,7 @@ def code_blocks(lines: list) -> tuple:
                     leaf = None
                     indented.add(n)
                 else:
-                    definitions = definitions and is_definition(line, start)
+                    read_text(n, line, start)
                 break
             if line[start] == ">":
                 close(held)
@@ -455,9 +488,73 @@ def code_blocks(lines: list) -> tuple:
                 close(held)
                 leaf = "paragraph"
                 definitions = True
-            definitions = definitions and is_definition(line, start)
+                first = None
+            read_text(n, line, start)
             break
-    return code, indented
+    return code, indented, paragraphs
+
+
+def code_spans(text: str) -> list:
+    """The (start, end) of each code span in the text of a paragraph, as
+    CommonMark reads one: a run of backticks opens a span that the next run
+    of exactly as many backticks closes, and is text when no such run follows
+    it. A backtick escaped with a backslash is text, and the rest of its run
+    opens a span; a backslash in a span escapes nothing, so a run after one
+    there may close it. The search for a closing run of each length goes on
+    from where the last search for that length stopped, so the text is read
+    in linear time."""
+    runs = [m.span() for m in TICKS.finditer(text)]
+    # The starts of the runs of each length, in order, and for each length how
+    # many of them start before the last opening run read ends.
+    starts = {}
+    for start, end in runs:
+        starts.setdefault(end - start, []).append(start)
+    passed = dict.fromkeys(starts, 0)
+    spans = []
+    pos = 0  # Where the text not yet read starts.
+    for start, end in runs:
+        if start < pos:
+            # A run in a span already read.
+            continue
+        slash = start
+        while slash > pos and text[slash - 1] == "\\":
+            slash -= 1
+        # An odd number of backslashes escapes the first backtick of the run.
+        opening = start + (start - slash) % 2
+        later = starts.get(end - opening)
+        pos = end
+        if later:
+            i = passed[end - opening]
+            while i < len(later) and later[i] < end:
+                i += 1
+            passed[end - opening] = i
+            if i < len(later):
+                pos = later[i] + end - opening
+                spans.append((opening, pos))
+    return spans
+
+
+def without_code_spans(lines: list, paragraphs: dict) -> list:
+    """The lines with their code spans blanked out, read across the lines of
+    each paragraph (read_blocks), and in the line itself for a line outside
+    one. Each line keeps its length, so its text keeps its place."""
+    result = []
+    i = 0
+    while i < len(lines):
+        first = paragraphs.get(i + 1)
+        end = i + 1
+        while first is not None and end < len(lines) and paragraphs.get(end + 1) == first:
+            end += 1
+        text = "\n".join(lines[i:end])
+        pieces = []
+        at = 0
+        for start, stop in code_spans(text):
+            pieces += [text[at:start], NOT_NEWLINE.sub(" ", text[start:stop])]
+            at = stop
+        pieces.append(text[at:])
+        result += "".join(pieces).split("\n")
+        i = end
+    return result
 
 
 def prose_urls(block: list) -> list:
@@ -506,15 +603,16 @@ def link_targets(text: str) -> list:
     found = []
     block = []
     lines = text.splitlines()
-    code = code_block_lines(lines)
+    code, indented, paragraphs = read_blocks(lines)
+    unspanned_lines = without_code_spans(lines, paragraphs)
     for n, line in enumerate(lines, 1):
-        if n in code or not line.strip(" \t"):
-            # A line of a fenced code block or a blank line ends a block of
-            # prose.
+        if n in code or n in indented or not line.strip(" \t"):
+            # A line of a fenced or indented code block or a blank line ends
+            # a block of prose.
             found += prose_urls(block)
             block = []
             continue
-        unspanned = CODE_SPAN.sub(blank, line)
+        unspanned = unspanned_lines[n - 1]
         for pattern in (INLINE, REFDEF):
             for m in pattern.finditer(unspanned):
                 found.append((n, unescape_destination(m.group(1))))
