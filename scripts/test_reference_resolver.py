@@ -133,7 +133,9 @@ class ParsesAsTheGrammarCompiledFromTheSpec(unittest.TestCase):
         self.assertEqual(self.disagreements(texts), [])
 
     def test_each_character_in_each_part(self):
-        chars = [chr(c) for c in range(128)] + ["é", " ", "٠", "ａ"]
+        # Four non-ASCII characters, written as escapes so the source holds none.
+        chars = [chr(c) for c in range(128)] + ["\N{LATIN SMALL LETTER E WITH ACUTE}", "\N{NO-BREAK SPACE}",
+                                                "\N{ARABIC-INDIC DIGIT ZERO}", "\N{FULLWIDTH LATIN SMALL LETTER A}"]
         texts = []
         for c in chars:
             texts += [f"did:opena2a:{c}:x", f"did:opena2a:a{c}:x", f"did:opena2a:a:{c}",
