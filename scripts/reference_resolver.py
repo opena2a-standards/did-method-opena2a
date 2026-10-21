@@ -72,8 +72,13 @@ Each key must be an Ed25519 publicKeyMultibase value.
 resolve prints the reply to a resolution request for DID, which it takes as
 a DID string rather than a URL path, so only the Section 3.1.2 step decodes
 it, and exits 0 when the status is 200, 1 otherwise. serve answers HTTP on
-127.0.0.1:8080 unless told otherwise (--port takes 0 to 65535); it serves
-plain HTTP, and Section 6.2 requires TLS in front of it. Both exit 2 when
+127.0.0.1:8080 unless told otherwise (--host takes an IPv4 address and
+--port 0 to 65535); it serves plain HTTP, and Section 6.2 requires TLS in
+front of it. serve refuses a host that is not an IPv4 address, such as an
+empty one, which the socket module reads as every interface, or a name. It
+closes a connection when a read or a write on it waits longer than 10
+seconds, so a client that connects and sends nothing is disconnected after
+10 seconds rather than holding a server thread. Both exit 2 when
 the records file does not load, and serve exits 2, after one line naming
 the address and the reason, when it cannot listen on the address; a --host
 holding a character other than visible ASCII appears there as Python's
@@ -84,6 +89,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime
+import ipaddress
 import json
 import re
 import sys
@@ -116,6 +122,8 @@ CACHE_CONTROL = "public, max-age=300"
 DEACTIVATED = frozenset({"suspended", "revoked", "deprecated"})
 RESOLVE_PATH = "/api/v1/did/"
 DISCOVERY_PATH = "/.well-known/opena2a"
+# How long a read or a write on a connection waits before serve closes the connection.
+TIMEOUT_SECONDS = 10
 TIMESTAMP = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z")
 DNS_LABEL = r"[a-z0-9](?:[a-z0-9-]*[a-z0-9])?"
 AUTHORITY = re.compile(rf"{DNS_LABEL}(?:\.{DNS_LABEL})*")
@@ -455,8 +463,14 @@ def _reply(status: int, body: dict, content_type: str, cache_control: str | None
     return status, headers + list(extra), data
 
 
-def handler_for(registry: Registry, log: bool = True) -> type:
-    """A request handler class for http.server that answers with registry.respond()."""
+def handler_for(registry: Registry, log: bool = True, timeout: float = TIMEOUT_SECONDS) -> type:
+    """A request handler class for http.server that answers with registry.respond().
+
+    A read or a write on a connection that waits longer than `timeout` seconds
+    closes the connection and ends the server thread answering it, so a client
+    that stops sending holds that thread for `timeout` seconds, not for as long
+    as it stays connected.
+    """
 
     class Handler(BaseHTTPRequestHandler):
         def answer(self) -> None:
@@ -477,6 +491,9 @@ def handler_for(registry: Registry, log: bool = True) -> type:
             if log:
                 super().log_message(format, *args)
 
+    # StreamRequestHandler sets it on the connection's socket, and BaseHTTPRequestHandler closes the connection
+    # when a read or a write raises TimeoutError.
+    Handler.timeout = timeout
     return Handler
 
 
@@ -491,10 +508,12 @@ def serve(registry: Registry, host: str, port: int) -> int:
     """Answer HTTP on host:port until interrupted; 0, or 2 after one line on stderr when it cannot listen there."""
     handler = handler_for(registry)
     try:
-        server = ThreadingHTTPServer((host, port), handler)
-    except (OSError, OverflowError, TypeError) as exc:
+        server = ThreadingHTTPServer((ipv4_address(host), port), handler)
+    except (OSError, OverflowError, ValueError) as exc:
         # OSError: the port is taken or the host is not an address of this machine. OverflowError: a port
-        # outside 0-65535, which the command line refuses before this. TypeError: a host the IDNA codec cannot
+        # outside 0-65535, which the command line refuses before this. ValueError: a host that is not an IPv4
+        # address, which ipv4_address() refuses so that the socket module never reads an empty host as every
+        # interface, looks up a name, or raises TypeError for a host the IDNA codec cannot
         # encode, such as one carrying an invisible character.
         print(f"cannot listen on {shown_host(host)}:{port}: {exc}", file=sys.stderr)
         return 2
@@ -517,6 +536,19 @@ def port_number(text: str) -> int:
     if not 0 <= port <= 65535:
         raise argparse.ArgumentTypeError(f"{port} is outside 0-65535")
     return port
+
+
+def ipv4_address(host: str) -> str:
+    """host when it is an IPv4 address in dotted-decimal form, such as 127.0.0.1; otherwise ValueError.
+
+    serve() listens on no other host. The socket module reads an empty host as every interface, and so it
+    reads "0", even with a zero-width space after it, which the IDNA codec drops; it looks up a name, and
+    reads a short form such as 127.1 as an address the host as written does not show.
+    """
+    try:
+        return str(ipaddress.IPv4Address(host))
+    except ValueError:
+        raise ValueError("not an IPv4 address such as 127.0.0.1") from None
 
 
 def main(argv: list | None = None) -> int:

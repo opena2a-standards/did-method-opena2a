@@ -19,6 +19,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
@@ -488,6 +489,44 @@ class ServesHttp(unittest.TestCase):
         self.assertEqual((status, json.loads(body)["registryDid"]), (200, REGISTRY))
 
 
+class ClosesIdleConnections(unittest.TestCase):
+    """serve's handler has a timeout, and a read that waits longer than it closes the connection."""
+
+    def test_serve_gives_its_handler_the_timeout(self):
+        handlers = []
+
+        def refuse(address, handler):
+            handlers.append(handler)
+            raise OSError("this test does not listen")
+
+        with mock.patch.object(rr, "ThreadingHTTPServer", refuse), contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(rr.serve(registry(), "127.0.0.1", 0), 2)
+        self.assertEqual([handler.timeout for handler in handlers], [rr.TIMEOUT_SECONDS])
+        self.assertGreater(rr.TIMEOUT_SECONDS, 0)
+        # The module docstring, which --help prints, states the value.
+        self.assertIn(f"waits longer than {rr.TIMEOUT_SECONDS} seconds", " ".join(rr.__doc__.split()))
+
+    def test_a_connection_that_sends_nothing_or_stops_partway_is_closed(self):
+        # Half a second, so the test does not wait the TIMEOUT_SECONDS that serve() gives a read.
+        server = rr.ThreadingHTTPServer(("127.0.0.1", 0), rr.handler_for(registry(), log=False, timeout=0.5))
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 10)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        request = f"GET {rr.RESOLVE_PATH}{AGENT} HTTP/1.0\r\nHost: 127.0.0.1\r\n".encode("ascii")
+        # Nothing, part of the request line, and the request line and a header without the blank line that ends them.
+        for sent in (b"", request[:12], request):
+            with self.subTest(sent=sent), socket.create_connection(("127.0.0.1", server.server_port),
+                                                                    timeout=10) as conn:
+                conn.sendall(sent)
+                try:
+                    reply = conn.recv(1024)
+                except socket.timeout:
+                    self.fail("the server kept the connection open for 10 seconds")
+                self.assertEqual(reply, b"")
+
+
 class CommandLine(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -540,10 +579,44 @@ class CommandLine(unittest.TestCase):
         self.assertEqual(len(err.splitlines()), 1, err)
         self.assertTrue(err.startswith(f"cannot listen on 127.0.0.1:{port}: "), err)
 
+    def test_serve_refuses_a_host_that_is_not_an_ipv4_address(self):
+        # The socket module reads an empty host as every interface, so a script whose host variable is unset
+        # would listen beyond loopback. It reads "0" as every interface too, and so "0" followed by a zero-width
+        # space or written as a fullwidth digit, which the IDNA codec turns into "0"; it looks up a name and reads
+        # 127.1 and 0x7f.0.0.1 as 127.0.0.1. ThreadingHTTPServer is replaced, so a host serve() let through would
+        # not be listened on.
+        hosts = ("", " ", "0", "0\N{ZERO WIDTH SPACE}", "\N{FULLWIDTH DIGIT ZERO}", "localhost", "::1", "127.1",
+                 "0x7f.0.0.1", "127.0.0.01", "256.0.0.1", "<broadcast>", " 127.0.0.1", "127.0.0.1 ", "127.0.0.1\n",
+                 "127.0.0.1\N{LEFT-TO-RIGHT MARK}")
+        for host in hosts:
+            with mock.patch.object(rr, "ThreadingHTTPServer") as server:
+                code, out, err = self.run_main("--records", str(self.path), "serve", "--host", host)
+            self.assertEqual((code, out), (2, ""), ascii(host))
+            server.assert_not_called()
+            # The line names the host, which the other serve tests check, then the port and the reason.
+            self.assertTrue(err.startswith("cannot listen on "), ascii(err))
+            self.assertTrue(err.endswith(":8080: not an IPv4 address such as 127.0.0.1\n"), ascii(err))
+
+    def test_serve_takes_an_ipv4_address_for_host(self):
+        # ThreadingHTTPServer is replaced by one that records the address and refuses it, so nothing listens.
+        addresses = []
+
+        def refuse(address, handler):
+            addresses.append(address)
+            raise OSError("this test does not listen")
+
+        for argv, host in ((["serve"], "127.0.0.1"), (["serve", "--host", "192.0.2.1"], "192.0.2.1"),
+                           (["serve", "--host", "0.0.0.0"], "0.0.0.0")):
+            with mock.patch.object(rr, "ThreadingHTTPServer", refuse):
+                code, out, err = self.run_main("--records", str(self.path), *argv)
+            self.assertEqual((code, out, err), (2, "", f"cannot listen on {host}:8080: this test does not listen\n"))
+        self.assertEqual(addresses, [("127.0.0.1", 8080), ("192.0.2.1", 8080), ("0.0.0.0", 8080)])
+
     def test_serve_reports_a_host_it_cannot_encode_in_one_line(self):
-        # The socket module raises TypeError, not OSError, for a host the IDNA codec refuses: an invisible mark
-        # copied with the address, the byte 0xFF as the command line decodes it, an empty label. The held port
-        # keeps serve from answering should one of them encode.
+        # Hosts the IDNA codec refuses, for which the socket module would raise TypeError, not OSError: an
+        # invisible mark copied with the address, the byte 0xFF as the command line decodes it, an empty label.
+        # serve refuses each as not an IPv4 address before the socket module reads it; the held port keeps serve
+        # from answering should one of them get through.
         hosts = ("127.0.0.1\N{LEFT-TO-RIGHT MARK}", "\N{RIGHT-TO-LEFT OVERRIDE}127.0.0.1",
                  "127.0.0.1\N{REPLACEMENT CHARACTER}", "127.0.0.1\udcff", "\N{LATIN SMALL LETTER A WITH DIAERESIS}..b")
         with socket.socket() as holder:

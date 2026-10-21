@@ -17,7 +17,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   HTTP handlers for resolution (Sections 3.5, 4.2 and 4.4) and discovery
   (Section 8.3). It reads a registry and its records from a JSON file and
   answers `GET` and `HEAD` on `/api/v1/did/<did>`; `resolve` prints one reply
-  and `serve` answers HTTP on `127.0.0.1`, takes a `--port` from 0 to 65535,
+  and `serve` answers HTTP on `127.0.0.1`. `serve` takes a `--port` from 0
+  to 65535 and a `--host` that is an IPv4 address; it closes a connection
+  when a read or a write on it waits longer than 10 seconds, so a client
+  that connects and sends nothing, or stops partway through its request,
+  holds a server thread for 10 seconds rather than for as long as it stays
+  connected. It refuses a `--host` that is not an IPv4 address, such as an
+  empty one, which the socket module reads as every interface, or a name,
   and exits 2 after one line naming the address and the reason when it
   cannot listen there; a `--host` holding a character other than visible
   ASCII, such as U+200E or a newline, appears in that line as Python's
