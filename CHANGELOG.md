@@ -422,6 +422,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   "signed" from "returns a signed DID Document", but its diff adds 32 lines to
   `README.md` and removes none, and no version of `README.md` on `main` has
   carried that phrase. (#10)
+- **Agents catalogued under `a2a_agent` (Section 3.2).** Section 3.2 now
+  records, as measured on 2026-10-21 (UTC), that the reference deployment
+  catalogues agents under the deprecated alias `a2a_agent`: its package
+  listing reports `1194` records of that type and `0` of type `agent`. The
+  resolved `agent` DID Documents of the agents `a2a-server`, `a2a-settlement`
+  and `a2a-spec` use the alias in two service URLs: `type=a2a_agent` in the
+  `TrustLookup` endpoint and `/badge/a2a_agent/` in the `TrustBadge`
+  endpoint. (#25)
 
 ## [0.3.0] - 2026-10-11
 
