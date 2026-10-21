@@ -410,6 +410,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   percent-encoded form to the same DID Document is no longer listed among the
   rules the reference deployment does not yet follow, and stands with the
   behaviour the Section 4.2 notes record the deployment showing.
+- **The commit that added the README use cases (`fe26e40`, #9) describes a
+  removal its diff does not contain.** Its message says it removed the word
+  "signed" from "returns a signed DID Document", but its diff adds 32 lines to
+  `README.md` and removes none, and no version of `README.md` on `main` has
+  carried that phrase. (#10)
 
 ## [0.3.0] - 2026-10-11
 
