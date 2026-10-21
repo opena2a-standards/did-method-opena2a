@@ -397,7 +397,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   measured on 2026-10-11. It now also records that the encoded form written
   with a lowercase hexadecimal digit is answered with the same bytes, and that
   the encoded form written with `%25` in place of each `%`, a `resource-id`
-  that does not decode under Section 3.1.2, is answered `400`.
+  that does not decode under Section 3.1.2, is answered `400`. Section 8.6
+  now matches: the public reference resolver's resolution of the
+  percent-encoded form to the same DID Document is no longer listed among the
+  rules the reference deployment does not yet follow, and stands with the
+  behaviour the Section 4.2 notes record the deployment showing.
 
 ## [0.3.0] - 2026-10-11
 
