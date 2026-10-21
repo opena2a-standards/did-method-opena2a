@@ -8,6 +8,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Public reference resolver (new Section 8.6, informative).** The registry
+  source stays private, and `scripts/reference_resolver.py` is a resolver
+  whose source a public reader can open, written from the specification
+  rather than taken from that source: DID parsing (Sections 3.1, 3.1.2 and
+  3.3), the Ed25519 `publicKeyMultibase` encoding (Section 5.1), DID Document
+  construction for a resource and for the registry (Sections 5 and 5.3), and
+  HTTP handlers for resolution (Sections 3.5, 4.2 and 4.4) and discovery
+  (Section 8.3). It reads a registry and its records from a JSON file and
+  answers `GET` and `HEAD` on `/api/v1/did/<did>`; `resolve` prints one reply
+  and `serve` answers HTTP on `127.0.0.1`. python3 standard library only.
+  `scripts/test_reference_resolver.py` compares its parser with the grammar
+  compiled from Section 3.1 on `did:opena2a:` followed by every string of up
+  to five characters over a nine-character alphabet, on each ASCII character
+  in the resource-type, the resource-id and the fragment, and on each
+  percent-encoded octet; it
+  compares the documents it builds with the Section 5 example and
+  `examples/`, and its replies with the checks of `scripts/check_vectors.py`.
+  The Abstract, Sections 8.1 and 10 and the README point to it. The Status
+  of this document section, Section 5.1, the README, `docs/status.md` and
+  `docs/use-cases.md` now name "the reference deployment's resolver" where
+  they said "the reference resolver", which meant that resolver.
 - **Resolution vectors (new Section 8.5, informative).** `vectors/` holds two
   resolution vectors for the resolved-`id` check of Section 6.5: the
   `did:opena2a:registry:evil.test` substitution measured against the reference

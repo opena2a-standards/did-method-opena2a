@@ -99,7 +99,9 @@ What `curl -s 'https://api.oa2a.org/api/v1/did/did:opena2a:mcp_server:@modelcont
 }
 ```
 
-Where it stops today: the reference resolver still emits the 0.1 document shape and does not yet emit `issuingRegistry` resolution metadata. What a verifier does about each: [`docs/use-cases.md`](./docs/use-cases.md).
+Where it stops today: the reference deployment's resolver still emits the 0.1 document shape and does not yet emit `issuingRegistry` resolution metadata. What a verifier does about each: [`docs/use-cases.md`](./docs/use-cases.md).
+
+[`scripts/reference_resolver.py`](./scripts/reference_resolver.py) is a resolver whose source is public, written from the specification. It emits the 0.2 document shape and `issuingRegistry`, and answers `404` for a registry DID other than its own. Spec Section 8.6 lists what else it implements and how to run it.
 
 ## Examples
 

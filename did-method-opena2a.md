@@ -12,7 +12,7 @@
 
 This specification defines the `did:opena2a` Decentralized Identifier method. A `did:opena2a` identifier names a resource (an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or a registry itself) that is registered in an OpenA2A Registry. Resolution returns a W3C DID Document that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose `service` endpoints expose trust lookup, signed trust proofs, and trust badges for the named resource.
 
-The method is implemented by the OpenA2A Registry, whose source is private and whose reference deployment is public (Section 8), and `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
+The method is implemented by the OpenA2A Registry, whose source is private and whose reference deployment is public, and its resolution by a resolver in this repository whose source is public (Section 8). `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
 
 - Agent Trust eXtension (ATX)
 - Agent Trust Protocol (ATP)
@@ -24,7 +24,7 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 This is revision 0.3 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
 
-Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
+Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference deployment's resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
 
 Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). It also changes the ABNF: the `resource-id` admits percent-encoded triplets, and Section 3.1.2 defines the decoding step that gives such a DID its canonical form. The reference deployment answered `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and `did:opena2a:registry:api.oa2a.org` with its own registry DID Document on 2026-10-11 and with `404` on 2026-10-21; see the implementation status note in Section 4.2.
 
@@ -348,11 +348,11 @@ Every `did:opena2a` DID Document SHALL contain at least one `verificationMethod`
 - **Subject keys.** One or more entries whose `controller` is the subject DID itself. Their ids use the fragment `#key-N`. A subject key is an Ed25519 key published by the subject at registration or rotation (Sections 4.1 and 4.3). The representation of a post-quantum key component is not defined in this revision.
 - **Registry key.** Exactly one entry whose `controller` is the issuing registry's self-identifier (Section 3.4). Its id uses the fragment `#registry-key`. Its value is the registry's current Ed25519 signing key.
 
-For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; revision 0.2 corrected the description (`CHANGELOG.md`, 0.2.0). The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
+For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; revision 0.2 corrected the description (`CHANGELOG.md`, 0.2.0). The reference deployment's resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
 
 During a registry key rotation overlap period (Section 4.3), the registry's discovery document SHALL advertise all currently valid registry keys. The DID Document itself advertises only the most recently rotated registry key. Verifiers handling potentially historical assertions SHOULD consult the discovery document for the full set of valid keys.
 
-Implementation status (reference resolver, source read 2026-09-08): the reference resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not published by the reference resolver as of 2026-09-08 (resolve `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`: one `#registry-key` entry, controller the registry DID, under both relationships); the 0.2 shape is the target it is measured against.
+Implementation status (reference deployment's resolver, source read 2026-09-08): that resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not published by that resolver as of 2026-09-08 (resolve `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`: one `#registry-key` entry, controller the registry DID, under both relationships); the 0.2 shape is the target it is measured against.
 
 ### 5.1.1 Verification relationships
 
@@ -454,7 +454,7 @@ A single publisher may control many `did:opena2a` DIDs (one per registered resou
 
 ### 8.1 OpenA2A Registry
 
-The reference implementation of the `did:opena2a` method is the OpenA2A Registry. Its source repository, `opena2a-org/opena2a-registry`, is private: an anonymous reader cannot open it, and the citations into it in Sections 4.2, 5.1 and 8.4 and in `CHANGELOG.md` can be checked only by readers with access. A public reader can check the reference deployment's behavior and the DID Documents it returns (Section 8.4), and the conformance suites (Section 8.2). Within the private source, the DID-handling code is concentrated in:
+The reference implementation of the `did:opena2a` method is the OpenA2A Registry. Its source repository, `opena2a-org/opena2a-registry`, is private: an anonymous reader cannot open it, and the citations into it in Sections 4.2, 5.1 and 8.4 and in `CHANGELOG.md` can be checked only by readers with access. A public reader can check the reference deployment's behavior and the DID Documents it returns (Section 8.4) and the conformance suites (Section 8.2), and can read the source of the resolver of Section 8.6. Within the private source, the DID-handling code is concentrated in:
 
 - `internal/application/did_service.go`: parsing, multibase encoding, DID Document construction.
 - `internal/interfaces/http/handlers/did_handler.go`: HTTP surface for Resolve, well-known, trust proof, revocation.
@@ -506,6 +506,21 @@ The DID Documents under [`examples/`](./examples/) are shaped for this deploymen
 
 The [`vectors/`](./vectors/) directory of this repository holds resolution vectors for the resolved-`id` check of Section 6.5. Each vector is a JSON object with a `requestedDid`, the `resolutionResult` a resolver returned for it (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`), and an `expected` member whose `verdict` is `accept` or `reject`; a rejection also names the failed check as `reason`. Every vector reports the reference deployment's self-identifier as `issuingRegistry`, so the issuing-registry check of Section 3.5 passes and the Section 6.5 check decides the verdict. The negative vector is the substitution measured against the reference deployment (Section 4.2): a request for `did:opena2a:registry:evil.test` answered with the document of `did:opena2a:registry:opena2a.org`, which the issuing-registry check does not catch. Key values in the vectors are placeholders; the checks do not read them. `scripts/check_vectors.py` applies both checks, with `did:opena2a:registry:opena2a.org` as the pinned registry, to every vector and fails when a verdict differs from `expected`, so a verifier implementation can be tested against the same files.
 
+### 8.6 Public reference resolver (informative)
+
+[`scripts/reference_resolver.py`](./scripts/reference_resolver.py) is a resolver whose source a public reader can open. It is written from this specification, not taken from the registry source of Section 8.1, and it does not serve the reference deployment; the implementation status notes in this document describe the reference deployment's resolver, not this one. It implements:
+
+- parsing: the grammar of Section 3.1, the decoding step of Section 3.1.2 and the case rules of Section 3.3, with a `400` body that names the defect (Section 4.2);
+- multibase: the `publicKeyMultibase` value of Section 5.1, the base58btc encoding of the multicodec prefix `0xed01` followed by the 32 key bytes, written and read back;
+- document construction: a resource's DID Document in the shape of Sections 5, 5.1 and 5.1.1, and the registry DID Document of Section 5.3;
+- handlers: `GET` and `HEAD` on the resolution path of Section 8.4, answered as Section 4.2 requires, with a DID resolution result that carries `issuingRegistry` (Section 3.5) and, for a deactivated record, `deactivated: true` and a document without services (Section 4.4); and a discovery document (Section 8.3) at `/.well-known/opena2a`.
+
+It follows rules that the implementation status notes record the reference deployment as not yet following: it emits the 0.2 document shape (Sections 5.1 and 5.3) and `issuingRegistry` (Section 3.5), reports deactivation (Section 4.4), decodes a percent-encoded `resource-id` (Section 4.2), and answers `404`, with a body naming the DID, for a registry DID other than its own (Section 4.2) and for a DID whose `resource-type` is not registered (Section 3.2).
+
+It reads the registry and its records from a JSON file, whose format its module docstring gives, and refuses a file that breaks the rules of Sections 3.4 and 4.1. `python3 scripts/reference_resolver.py --records <file> resolve <did>` prints the reply to one request, and `serve` answers HTTP on `127.0.0.1`. It serves plain HTTP, so TLS (Section 6.2) goes in front of it. It does not implement the write operations of Sections 4.1, 4.3 and 4.4, trust proofs or revocation.
+
+`scripts/test_reference_resolver.py` checks the parser against the grammar that `scripts/check_did_syntax.py` compiles from Section 3.1, the documents the resolver builds against the Section 5 example and [`examples/`](./examples/), and its replies against the checks of `scripts/check_vectors.py` (Section 8.5).
+
 ## 9. Versioning and change process
 
 Changes to this specification are tracked in the repository's `CHANGELOG.md`. Substantive changes (changes to the ABNF, the registered resource types, the operation surface, the DID Document shape, or the security model) SHALL be accompanied by a version bump and a pull request that requires review by the editors listed in `MAINTAINERS.md` and a 7-day quiet period before merge.
@@ -520,6 +535,7 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA), Section 7.1 test vectors: <https://datatracker.ietf.org/doc/html/rfc8032#section-7.1>
 - OpenA2A Agent Identity Protocol, AIP-SPEC 1.2.0-draft, Section 3.2 (method scoping; the text is unchanged from 1.1.0-draft): <https://github.com/opena2a-standards/agent-identity-protocol>
 - OpenA2A Registry source: `opena2a-org/opena2a-registry`, private (Section 8.1)
+- Public reference resolver: [`scripts/reference_resolver.py`](./scripts/reference_resolver.py) (Section 8.6)
 - OpenA2A reference deployment discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
 - Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
 - Agent Trust Protocol (ATP) conformance suite: <https://github.com/opena2a-standards/atp-conformance>
