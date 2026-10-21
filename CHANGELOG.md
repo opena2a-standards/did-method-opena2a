@@ -43,6 +43,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the reference deployment it exits 0. `docs/examples.md` states that the
   resolved registry document carries three verification methods where its
   example carries one.
+- **`python3 scripts/check_examples.py --live` compares the not-found body.**
+  `did:opena2a:agent:agent_conformance_test_001` must answer `404` with the
+  body Section 8.4 records,
+  `{"error":"resource not found: agent/agent_conformance_test_001"}`; the run
+  exits 1 otherwise. Against the reference deployment it exits 0.
 
 ### Changed
 
@@ -290,11 +295,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Section 3.2** no longer says a registry MAY reply `404` for a resource it
   has no record of; it points to the Section 4.2 rule, under which `404` is the
   one conforming reply.
-- **Section 8.4** records the not-found body the reference deployment returns
-  for an unregistered `agent` DID,
-  `{"error":"package not found: registry package not found"}` (measured
-  2026-10-12), in place of the `package not found: <type>/<id>` shape it does
-  not emit.
+- **Section 8.4** records the not-found body the reference deployment returns,
+  `{"error":"resource not found: <type>/<id>"}` with the requested resource
+  type and id (measured 2026-10-21 UTC), in place of the
+  `package not found: <type>/<id>` shape revision 0.3 recorded. The body
+  identifies the missing resource, as Section 4.2 requires, and the Section
+  4.2 implementation status note no longer says it does not. On 2026-10-12
+  the deployment answered an unregistered `agent` DID with
+  `{"error":"package not found: registry package not found"}`.
+- **Requests that name `a2a_agent` (Sections 3.1.2, 3.2, 4.2 and 6.5).**
+  Section 3.2 says resolvers SHOULD treat the alias as `agent`, but the alias
+  holds a digit, which the Section 3.1 `resource-type` rule does not admit,
+  and no section said which `id` a request naming it is answered with.
+  Section 3.2 now says that treating it as `agent` means reading the request
+  as the `agent` DID with the same `resource-id` before it is parsed and
+  decoded: the registry answers with the canonical form of that DID as `id`,
+  and the resolved-`id` checks of Sections 4.2 and 6.5 compare the returned
+  `id` with it. A resolver that does not treat the alias as `agent` answers
+  `400`. `scripts/check_vectors.py` reads such a request the same way;
+  before, it stopped on one with `requested DID does not parse or decode`.
+  Implementation status (measured 2026-10-21 UTC for three registered
+  agents): the reference deployment answers a request naming the alias with
+  a document whose `id` keeps the alias.
 - **Section 5.1** says revision 0.2 corrected the `publicKeyMultibase`
   description; "this revision" read as a 0.3 change.
 - **Status paragraph and Section 10** cite AIP-SPEC 1.2.0-draft Section 3.2 and

@@ -8,9 +8,11 @@ is a reference for two checks, in the order a verifier applies them: the
 3.5), and the resolved `id` equals the canonical form of the requested DID
 (Sections 3.1.2 and 6.5), compared as exact strings. The canonical form comes
 from check_did_syntax.py, which compiles the Section 3.1 ABNF from the
-specification. It fails when a verdict differs from the vector's `expected`
-member, or when the set no longer covers an accepted resolution and a
-resolved-id rejection. python3 standard library only.
+specification. A request that names the deprecated alias `a2a_agent` in its
+resource-type slot is read as the `agent` DID with the same resource-id
+before it is parsed (Section 3.2). It fails when a verdict differs from the
+vector's `expected` member, or when the set no longer covers an accepted
+resolution and a resolved-id rejection. python3 standard library only.
 """
 from __future__ import annotations
 
@@ -33,6 +35,11 @@ VECTORS = ROOT / "vectors"
 PINNED_REGISTRY = "did:opena2a:registry:opena2a.org"
 REASONS = ("issuing-registry-mismatch", "resolved-id-mismatch")
 REQUIRED = (("accept", None), ("reject", "resolved-id-mismatch"))
+# Section 3.2: the deprecated resource-type alias, which the Section 3.1 rule
+# does not admit (it holds a digit), and the DID prefix a request naming it is
+# read with.
+ALIAS_PREFIX = "did:opena2a:a2a_agent:"
+AGENT_PREFIX = "did:opena2a:agent:"
 
 
 def grammar() -> tuple:
@@ -50,9 +57,16 @@ def member(result: dict, name: str) -> dict:
     return value
 
 
+def read_alias(requested: str) -> str:
+    """Section 3.2: a request that names the alias, read as the agent DID with the same resource-id."""
+    if requested.startswith(ALIAS_PREFIX):
+        return AGENT_PREFIX + requested[len(ALIAS_PREFIX):]
+    return requested
+
+
 def verify(requested: str, result: dict, did_rx, rid_rx, pinned: str = PINNED_REGISTRY) -> tuple:
     """Return (verdict, reason) for one resolution under Sections 3.5 and 6.5."""
-    canonical = canonical_form(requested, did_rx, rid_rx)
+    canonical = canonical_form(read_alias(requested), did_rx, rid_rx)
     if canonical is None:
         raise ValueError(f"requested DID does not parse or decode (Section 3.1.2): {requested!r}")
     if not isinstance(result, dict):

@@ -142,12 +142,22 @@ def deployment() -> dict:
     return served
 
 
-def serve(documents: dict):
-    """Answer each resolution request with its DID's document, or 404 for a DID not in `documents`."""
+def not_found(did: str) -> bytes:
+    """The body of the deployment's 404 reply to `did`, as spec Section 8.4 records it."""
+    _, _, rtype, rid = did.split(":", 3)
+    return json.dumps({"error": f"resource not found: {rtype}/{rid}"}).encode("utf-8")
+
+
+def serve(documents: dict, bodies: dict | None = None):
+    """Answer each resolution request with its DID's document, or 404 for a DID not in `documents`.
+
+    A 404 reply carries the body `bodies` gives for its DID, or the one spec Section 8.4 records.
+    """
     def respond(request, *args, **kwargs):
         did = request.full_url.split("/api/v1/did/", 1)[1]
         if did not in documents:
-            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(b""))
+            body = (bodies or {}).get(did, not_found(did))
+            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(body))
         return Response(json.dumps(documents[did]).encode("utf-8"))
     return respond
 
@@ -252,6 +262,51 @@ class LiveKeys(unittest.TestCase):
             "examples/mcp_server.json: service endpoints differ from the live document",
             "examples/mcp_server.json: live assertionMethod [] differs from the layout spec Section 5.1 "
             "records for the deployment, [#registry-key]")
+
+
+class LiveNotFoundBody(unittest.TestCase):
+    DID = check_examples.NOT_FOUND_DID
+    RECORDED = '{"error":"resource not found: agent/agent_conformance_test_001"}'
+
+    def assert_only_problem(self, bodies: dict, expected: str) -> None:
+        status, out, err = run_live(serve(deployment(), bodies))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [expected])
+
+    def test_another_body_is_reported(self):
+        # The body the deployment returned on 2026-10-12, which did not name the resource.
+        self.assert_only_problem(
+            {self.DID: b'{"error":"package not found: registry package not found"}'},
+            f'spec Section 8.4: {self.DID} answered 404 with '
+            f'{{"error":"package not found: registry package not found"}}, where the section records {self.RECORDED}')
+
+    def test_a_body_that_is_not_json_is_reported(self):
+        self.assert_only_problem(
+            {self.DID: b"<html>"},
+            f"spec Section 8.4: {self.DID} answered 404 with a body that is not a JSON object, "
+            f"where the section records {self.RECORDED}")
+
+    def test_a_served_did_is_reported(self):
+        documents = deployment()
+        documents[self.DID] = {"id": self.DID}
+        status, _, err = run_live(serve(documents))
+        self.assertEqual(status, 1)
+        self.assertIn(f"spec Section 8.4: {self.DID} answered 200, where the section records 404 with "
+                      f"{self.RECORDED}", err)
+
+
+class NotFoundBodyDocumentation(unittest.TestCase):
+    """Spec Section 8.4 records the reply `--live` compares, for the DID it compares."""
+
+    def test_section_8_4_records_the_body_the_live_check_compares(self):
+        spec = (check_examples.ROOT / "did-method-opena2a.md").read_text(encoding="utf-8")
+        section = spec.split("\n### 8.4 ", 1)[1].split("\n### ", 1)[0]
+        did = check_examples.NOT_FOUND_DID
+        for rtype, rid in (("<type>", "<id>"), did.split(":", 3)[2:]):
+            body = json.dumps(check_examples.not_found_body(rtype, rid), separators=(",", ":"))
+            self.assertIn(f"`{body}`", section)
+        self.assertIn(f"`curl -s https://api.oa2a.org/api/v1/did/{did}`", section)
 
 
 if __name__ == "__main__":

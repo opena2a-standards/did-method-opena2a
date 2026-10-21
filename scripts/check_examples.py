@@ -10,7 +10,9 @@ reference deployment. A top-level document must answer 200 with the same
 `id` and `service`, and its keys must have the layout the Implementation
 status notes of Sections 5.1 and 5.3 record for the deployment, each
 registry-controlled Ed25519 key carrying the registry's `#signing-key` value.
-A conformance document must answer 404. python3 standard library only.
+A conformance document must answer 404, and the DID that the not-found note
+of Section 8.4 names must answer 404 with the body that note records.
+python3 standard library only.
 """
 from __future__ import annotations
 
@@ -37,6 +39,9 @@ SERVED = ("agent", "mcp_server", "ai_tool", "llm", "skill")
 # (Section 3.2) and puts that type in trust-lookup and badge URLs; its trust
 # lookup answers 404 for type=agent.
 CATALOG_TYPE = {"agent": "a2a_agent"}
+# Spec Section 8.4 records the deployment's 404 reply to this DID, which it
+# has no record of; `--live` compares the reply with not_found_body().
+NOT_FOUND_DID = "did:opena2a:agent:agent_conformance_test_001"
 DID_RE = re.compile(r"^did:opena2a:([a-z][a-z_]*):([A-Za-z0-9._/@:-]+)$")
 TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
 ED25519 = "Ed25519VerificationKey2020"
@@ -213,7 +218,8 @@ def check_doc(name: str, doc: dict, registered: set, expect_type: str | None, se
 def resolve(did: str) -> tuple:
     """Return (status, document, error); error is set when no HTTP status was received.
 
-    document is None when the body is not JSON (an HTML error page, for example).
+    document is the parsed body, of an error reply as well, and None when the
+    body is not JSON (an HTML error page, for example).
     """
     req = urllib.request.Request(f"{BASE}/api/v1/did/{did}",
                                  headers={"User-Agent": "did-method-opena2a/check-examples"})
@@ -226,13 +232,42 @@ def resolve(did: str) -> tuple:
                 document = None
             return resp.status, document, None
     except urllib.error.HTTPError as err:
-        # The error is also the response; close it so its body is released.
-        err.close()
-        return err.code, None, None
+        # The error is also the response. Its body is read for the not-found
+        # check (Section 8.4); then it is closed so its body is released.
+        try:
+            document = json.load(err)
+        except (ValueError, OSError):
+            document = None
+        finally:
+            err.close()
+        return err.code, document, None
     except OSError as err:
         # URLError (DNS failure, refused connection), TimeoutError and other
         # socket errors: report the reason instead of a traceback.
         return None, None, f"request failed: {getattr(err, 'reason', err)}"
+
+
+def not_found_body(rtype: str, rid: str) -> dict:
+    """Spec Section 8.4: the body of the deployment's 404 reply to a DID it has no record of."""
+    return {"error": f"resource not found: {rtype}/{rid}"}
+
+
+def check_not_found(did: str) -> list:
+    """Spec Section 8.4: `did` answers 404 with the body the section records."""
+    status, body, error = resolve(did)
+    if error:
+        return [f"spec Section 8.4: {did}: {error}"]
+    expected = not_found_body(*DID_RE.match(did).groups())
+    want = json.dumps(expected, separators=(",", ":"))
+    if status != 404:
+        return [f"spec Section 8.4: {did} answered {status}, where the section records 404 with {want}"]
+    if not isinstance(body, dict):
+        return [f"spec Section 8.4: {did} answered 404 with a body that is not a JSON object, "
+                f"where the section records {want}"]
+    if body != expected:
+        got = json.dumps(body, separators=(",", ":"))
+        return [f"spec Section 8.4: {did} answered 404 with {got}, where the section records {want}"]
+    return []
 
 
 def main() -> int:
@@ -282,6 +317,7 @@ def main() -> int:
                 problems += check_live_keys(name, live)
                 live_docs.append((name, live))
         problems += check_live_key_values(live_docs)
+        problems += check_not_found(NOT_FOUND_DID)
 
     for p in problems:
         print(p, file=sys.stderr)
