@@ -7,7 +7,10 @@ that the conformance suites carry and the deployment does not serve. Offline,
 this checks the file set, the 0.2 shape (Section 5) and the service endpoint
 encoding the deployment emits. `--live` also resolves each DID against the
 reference deployment. A top-level document must answer 200 with the same
-`id` and `service`, and its keys must have the layout the Implementation
+`id` and `service`. A top-level DID whose resource-id holds "/" or "@" is
+also resolved in its percent-encoded form (Section 3.1.1), which must answer
+200 with the same document, as the Implementation status note of Section 4.2
+records. A top-level document's keys must have the layout the Implementation
 status notes of Sections 5.1 and 5.3 record for the deployment, each
 registry-controlled Ed25519 key carrying the registry's `#signing-key` value.
 A conformance document must answer 404, and so must each registry DID the
@@ -161,6 +164,42 @@ def check_live_key_values(live_docs: list) -> list:
                 problems.append(f"{name}: {vm.get('id')} does not carry the key {signing_id} carries "
                                 f"(spec Section {section})")
     return problems
+
+
+def percent_encoded(did: str) -> str:
+    """`did` with "/" and "@" in its resource-id percent-encoded, the percent-encoded
+    serialization of Section 3.1.1. A DID that DID_RE does not match is returned as is."""
+    m = DID_RE.match(did)
+    if not m:
+        return did
+    rtype, rid = m.groups()
+    return f"did:opena2a:{rtype}:{quote(rid, safe=':')}"
+
+
+def check_live_encoded(name: str, did: str, live: dict) -> list:
+    """The percent-encoded form of `did` must resolve to `live`, the document `did` resolved to.
+
+    Section 3.1.2: a resolver decodes before lookup, so both forms resolve to one
+    DID Document, whose id is the canonical form. A DID with nothing to encode
+    is not requested again.
+    """
+    encoded = percent_encoded(did)
+    if encoded == did:
+        return []
+    status, other, error = resolve(encoded)
+    if error:
+        return [f"{name}: {encoded}: {error}"]
+    if status != 200:
+        return [f"{name}: {encoded} answered {status}, expected 200 and the document {did} resolved to "
+                f"(spec Sections 3.1.2 and 4.2)"]
+    if not isinstance(other, dict):
+        return [f"{name}: {encoded} answered 200 with a body that is not a JSON object"]
+    missing = object()
+    differ = sorted(k for k in live.keys() | other.keys() if live.get(k, missing) != other.get(k, missing))
+    if differ:
+        return [f"{name}: {encoded} resolved to a document that differs from the one {did} resolved to "
+                f"in {', '.join(differ)} (spec Section 3.1.2)"]
+    return []
 
 
 def service_endpoints(did: str, rtype: str, rid: str) -> list:
@@ -329,6 +368,7 @@ def main() -> int:
                 if live.get("service") != doc.get("service"):
                     problems.append(f"{name}: service endpoints differ from the live document")
                 problems += check_live_keys(name, live)
+                problems += check_live_encoded(name, doc["id"], live)
                 live_docs.append((name, live))
         problems += check_live_key_values(live_docs)
         problems += check_not_found(NOT_FOUND_DID)

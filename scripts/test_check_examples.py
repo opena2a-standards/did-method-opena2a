@@ -14,6 +14,7 @@ import unittest
 import urllib.error
 from pathlib import Path
 from unittest import mock
+from urllib.parse import unquote
 
 SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
@@ -154,12 +155,105 @@ def serve(documents: dict, bodies: dict | None = None):
     A 404 reply carries the body `bodies` gives for its DID, or the one spec Section 8.4 records.
     """
     def respond(request, *args, **kwargs):
-        did = request.full_url.split("/api/v1/did/", 1)[1]
+        # The requested DID is percent-decoded before the lookup, as spec Section 3.1.2
+        # requires of a resolver, so its encoded and unescaped forms answer with one document.
+        did = unquote(request.full_url.split("/api/v1/did/", 1)[1])
         if did not in documents:
             body = (bodies or {}).get(did, not_found(did))
             raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(body))
         return Response(json.dumps(documents[did]).encode("utf-8"))
     return respond
+
+
+class LiveEncodedForm(unittest.TestCase):
+    """A served DID whose resource-id holds "/" or "@" is also resolved percent-encoded (spec Section 3.1.1)."""
+
+    MCP = "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem"
+    LLM = "did:opena2a:llm:nvidia/Gemma-4-31B-IT-NVFP4"
+    MCP_ENCODED = "did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem"
+    LLM_ENCODED = "did:opena2a:llm:nvidia%2FGemma-4-31B-IT-NVFP4"
+
+    def answer_encoded(self, respond_encoded):
+        """Answer an encoded request with `respond_encoded`, every other one as the deployment does."""
+        respond = serve(deployment())
+
+        def side_effect(request, *args, **kwargs):
+            if "%" in request.full_url:
+                return respond_encoded(request)
+            return respond(request, *args, **kwargs)
+        return side_effect
+
+    def test_each_did_with_slash_or_at_is_requested_encoded_once(self):
+        requested = []
+        respond = serve(deployment())
+
+        def record(request, *args, **kwargs):
+            requested.append(request.full_url.split("/api/v1/did/", 1)[1])
+            return respond(request, *args, **kwargs)
+
+        status, out, err = run_live(record)
+        self.assertEqual(err, "")
+        self.assertEqual(status, 0)
+        self.assertEqual(out, "examples match: 6 served, 2 conformance, resolved against the reference deployment\n")
+        self.assertEqual([did for did in requested if "%" in did], [self.LLM_ENCODED, self.MCP_ENCODED])
+        # Each served DID is requested once unescaped, so one with nothing to encode is
+        # not requested again; a DID another check resolves again is not counted here.
+        served = sorted(deployment())
+        self.assertEqual(sorted(did for did in requested if did in served), served)
+
+    def test_an_encoded_form_answered_404_is_reported(self):
+        # A resolver that does not decode, as spec Section 4.2 recorded for the
+        # reference deployment on 2026-10-11.
+        def answer_404(request):
+            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(b""))
+
+        status, out, err = run_live(self.answer_encoded(answer_404))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [
+            f"examples/llm.json: {self.LLM_ENCODED} answered 404, expected 200 and the document "
+            f"{self.LLM} resolved to (spec Sections 3.1.2 and 4.2)",
+            f"examples/mcp_server.json: {self.MCP_ENCODED} answered 404, expected 200 and the document "
+            f"{self.MCP} resolved to (spec Sections 3.1.2 and 4.2)",
+        ])
+
+    def test_an_encoded_form_resolved_to_another_document_is_reported(self):
+        # A resolver that decodes for the lookup and returns the requested DID as the id.
+        documents = deployment()
+        documents[self.LLM_ENCODED] = documents[self.LLM]
+        documents[self.MCP_ENCODED] = dict(documents[self.MCP], id=self.MCP_ENCODED)
+
+        def look_up_as_requested(request):
+            return Response(json.dumps(documents[request.full_url.split("/api/v1/did/", 1)[1]]).encode("utf-8"))
+
+        status, out, err = run_live(self.answer_encoded(look_up_as_requested))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [
+            f"examples/mcp_server.json: {self.MCP_ENCODED} resolved to a document that differs from the "
+            f"one {self.MCP} resolved to in id (spec Section 3.1.2)",
+        ])
+
+    def test_an_encoded_form_answered_with_a_body_that_is_not_json_is_reported(self):
+        status, out, err = run_live(self.answer_encoded(lambda request: Response(b"<html>")))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [
+            f"examples/llm.json: {self.LLM_ENCODED} answered 200 with a body that is not a JSON object",
+            f"examples/mcp_server.json: {self.MCP_ENCODED} answered 200 with a body that is not a JSON object",
+        ])
+
+    def test_a_network_error_on_an_encoded_form_is_reported_not_raised(self):
+        def refuse(request):
+            raise urllib.error.URLError(ConnectionRefusedError(61, "Connection refused"))
+
+        status, out, err = run_live(self.answer_encoded(refuse))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [
+            f"examples/llm.json: {self.LLM_ENCODED}: request failed: [Errno 61] Connection refused",
+            f"examples/mcp_server.json: {self.MCP_ENCODED}: request failed: [Errno 61] Connection refused",
+        ])
 
 
 class LiveKeys(unittest.TestCase):
