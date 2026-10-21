@@ -12,7 +12,7 @@
 
 This specification defines the `did:opena2a` Decentralized Identifier method. A `did:opena2a` identifier names a resource (an agent, an MCP server, an authority, a publisher, an AI tool, an LLM, a skill, or a registry itself) that is registered in an OpenA2A Registry. Resolution returns a W3C DID Document that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose `service` endpoints expose trust lookup, signed trust proofs, and trust badges for the named resource.
 
-The method is implemented by the OpenA2A Registry, whose source is private and whose reference deployment is public (Section 8), and `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
+The method is implemented by the OpenA2A Registry, whose source is private and whose reference deployment is public, and its resolution by a resolver in this repository whose source is public (Section 8). `did:opena2a` identifiers appear in the byte-stable test vectors of three conformance suites:
 
 - Agent Trust eXtension (ATX)
 - Agent Trust Protocol (ATP)
@@ -24,9 +24,9 @@ This document specifies the method's syntax, operations, resolution behaviour, a
 
 This is revision 0.3 of the `did:opena2a` method specification. The method is registered in the W3C DID Extensions registry ([w3c/did-extensions#717](https://github.com/w3c/did-extensions/pull/717), merged 2026-07-04); the registry entry cites this document. The method is in production use: the reference deployment resolves it and advertises it under `supportedMethods: ["did:opena2a"]` in `https://api.oa2a.org/.well-known/opena2a` (read 2026-09-08; Section 8.4).
 
-Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
+Revision 0.2 changes the DID Document shape (Section 5): the subject's own keys are published under `authentication` and the issuing registry's key under `assertionMethod`. The reference deployment's resolver emits the 0.1 shape (a single registry key under both relationships) as of 2026-09-08; see the implementation status notes in Sections 4.2 and 5.1.
 
-Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). It also changes the ABNF: the `resource-id` admits percent-encoded triplets, and Section 3.1.2 defines the decoding step that gives such a DID its canonical form. The reference deployment answers every `did:opena2a:registry:<authority>` DID with its own registry DID Document as of 2026-10-11; see the implementation status note in Section 4.2.
+Revision 0.3 requires that the `id` of a resolved DID Document equal the requested DID in its canonical form (Section 3.1.2) and that a registry answer a DID it has not registered with `404` rather than another document (Sections 4.2, 6.1 and 6.5). It also changes the ABNF: the `resource-id` admits percent-encoded triplets, and Section 3.1.2 defines the decoding step that gives such a DID its canonical form. The reference deployment answered `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and `did:opena2a:registry:api.oa2a.org` with its own registry DID Document on 2026-10-11 and with `404` on 2026-10-21; see the implementation status note in Section 4.2.
 
 Scope relative to the Agent Identity Protocol: `did:opena2a` is the ecosystem-scoped method of the OpenA2A specification family. It names resources listed in a registry and is used at the ATP and ATX layer. An AIP identity provider issues and resolves its own provider-scoped identifiers, a `did:web` profile, and does not serve `did:opena2a` (AIP-SPEC 1.2.0-draft, Section 3.2, whose text is unchanged from 1.1.0-draft; `draft-fane-opena2a-aip-04`).
 
@@ -120,7 +120,7 @@ The unescaped form is the canonical form of a `did:opena2a` DID: a registry assi
 1. Each `pct-encoded` triplet in the `resource-id` is replaced by the octet its two hexadecimal digits denote. The digits are case-insensitive: `%2f` and `%2F` denote the same octet. The prefix, the `resource-type` and the fragment are not decoded; the grammar admits no `pct-encoded` triplet in them.
 2. The decoded `resource-id` MUST consist only of characters that the `resource-id` production admits unescaped (`unreserved` and `:`). A triplet that decodes to any other octet (for example `%25`, `%23`, `%20`, or an octet above `%7F`) makes the DID invalid. The result is not decoded a second time.
 
-Two `did:opena2a` DIDs denote the same DID subject exactly when their canonical forms are equal after the normalization of Section 3.3. A resolver MUST decode before lookup, so the percent-encoded and unescaped forms of one DID resolve to the same DID Document, whose `id` is the canonical form; a resolver that returns a full resolution result (Section 4.2) MAY report the canonical form in `didDocumentMetadata.canonicalId` (DID Core Section 7.1.3). Collision detection (Section 4.1) and identifier comparison (Section 3.1.1) apply to canonical forms.
+Two `did:opena2a` DIDs denote the same DID subject exactly when their canonical forms are equal after the normalization of Section 3.3. A resolver MUST decode before lookup, so the percent-encoded and unescaped forms of one DID resolve to the same DID Document, whose `id` is the canonical form; a resolver that returns a full resolution result (Section 4.2) MAY report the canonical form in `didDocumentMetadata.canonicalId` (DID Core Section 7.1.3). Collision detection (Section 4.1) and identifier comparison (Section 3.1.1) apply to canonical forms. A string whose `resource-type` slot holds the deprecated alias `a2a_agent` does not parse under Section 3.1: a resolver or verifier that treats the alias as `agent` reads it as the `agent` DID with the same `resource-id` before this step, and that DID's canonical form is the one resolved and compared (Section 3.2).
 
 This decoding applies to the DID string. It is separate from, and follows, any URL decoding that a transport applies to a request carrying the DID (Section 8.4).
 
@@ -169,7 +169,29 @@ correct reply to it (Section 4.2): `agent9` is one, since the rule admits no dig
 **Deprecated aliases.** `a2a_agent` is a legacy alias of `agent` that appears
 in older fixtures and examples. It is not a registered type: resolvers SHOULD
 treat it as `agent` when encountered, and issuers MUST NOT mint new
-identifiers with it.
+identifiers with it. The alias holds a digit, which the `resource-type` rule
+of Section 3.1 does not admit, so a string that names it is not a conforming
+`did:opena2a` DID. Treating it as `agent` means reading the string with
+`agent` in its `resource-type` slot before it is parsed (Section 3.1) and
+decoded (Section 3.1.2). The request then names the `agent` DID with the same
+`resource-id`. The registry answers it as it answers that DID, with a DID
+Document whose `id` is the canonical form of the `agent` DID or with `404`
+when it has no record of the resource, and the resolved-`id` checks of
+Sections 4.2 and 6.5 compare the returned `id` with that canonical form. A
+verifier that requests a string naming the alias reads it the same way. A
+resolver that does not treat the alias as `agent` answers the string with
+`400`, as Section 4.2 requires for a DID outside the syntax.
+
+Implementation status (measured 2026-10-21 UTC for the agents `a2a-server`,
+`a2a-settlement` and `a2a-spec`): the reference deployment answers a request
+that names the alias and a registered agent with `200` and a document whose
+`id` keeps the alias, where this section calls for the canonical form of the
+`agent` DID. With `<resource-type>` replaced by `a2a_agent`,
+`curl -s https://api.oa2a.org/api/v1/did/did:opena2a:<resource-type>:a2a-server | jq -r .id`
+prints the requested string; with `agent` it prints
+`did:opena2a:agent:a2a-server`. A verifier that reads the alias as this
+section describes finds a resolved-`id` mismatch in the first reply
+(Section 6.5).
 
 ### 3.3 Identifier normalization
 
@@ -222,9 +244,9 @@ The registry decodes the `resource-id` (Section 3.1.2) before lookup. If the res
 
 Implementation status (2026-10-11): the reference deployment does not decode a percent-encoded `resource-id`. `curl -s -o /dev/null -w '%{http_code}\n' "https://api.oa2a.org/api/v1/did/$DID"` prints `404` when `DID` is the percent-encoded serialization shown in Section 3.1.1 (`resource-id` `%40modelcontextprotocol%2Fserver-filesystem`) and `200` when it is the unescaped form `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`.
 
-The `id` of a returned DID Document MUST equal the canonical form of the requested DID (Section 3.1.2), compared as exact strings after that decoding and with no other normalization (Section 3.3; DID Core Section 7.1 states the requirement for the DID that was resolved). A request in canonical form, the form a registry assigns (Section 4.1) and a signed artifact carries (Section 3.1.1), matches the returned `id` byte for byte. For a percent-encoded request the registry returns the canonical `id` and MAY report it in `didDocumentMetadata.canonicalId` (Section 3.1.2). A registry MUST NOT answer a DID it has not registered with another document, its own registry DID Document (Section 5.3) included. A `did:opena2a:registry:<authority>` DID other than the registry's self-identifier (Section 3.4) is not registered unless the registry holds a record for that registry, and the `404` rule above applies to it.
+The `id` of a returned DID Document MUST equal the canonical form of the requested DID (Section 3.1.2), compared as exact strings after that decoding and with no other normalization (Section 3.3; DID Core Section 7.1 states the requirement for the DID that was resolved). A request in canonical form, the form a registry assigns (Section 4.1) and a signed artifact carries (Section 3.1.1), matches the returned `id` byte for byte. For a percent-encoded request the registry returns the canonical `id` and MAY report it in `didDocumentMetadata.canonicalId` (Section 3.1.2). A registry that treats the deprecated alias `a2a_agent` as `agent` reads a request that names it as the `agent` DID with the same `resource-id`, and returns that DID's canonical form as `id` (Section 3.2). A registry MUST NOT answer a DID it has not registered with another document, its own registry DID Document (Section 5.3) included. A `did:opena2a:registry:<authority>` DID other than the registry's self-identifier (Section 3.4) is not registered unless the registry holds a record for that registry, and the `404` rule above applies to it.
 
-Implementation status (measured 2026-10-11, `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:evil.test | jq -r .id`): the reference deployment answers every `did:opena2a:registry:<authority>` DID with `200` and its own registry DID Document, whose `id` is `did:opena2a:registry:opena2a.org`. `registry:evil.test`, `registry:example.com` and `registry:api.oa2a.org` were measured. An unregistered `agent` DID returns `404`; its body, `{"error":"package not found: registry package not found"}`, does not identify the missing resource as the rule above requires. The resolver change is open; until it lands, the verifier check in Section 6.5 is what rejects the substituted document.
+Implementation status (measured 2026-10-21 UTC, `curl -s -w ' %{http_code}\n' https://api.oa2a.org/api/v1/did/did:opena2a:registry:evil.test` prints `{"error":"resource not found: registry/evil.test"} 404`): the reference deployment answers `404` for `registry:evil.test`, `registry:example.com` and `registry:api.oa2a.org`, and for `registry:OPENA2A.ORG`, `registry:OpenA2A.org` and `registry:opena2a.org.`, which differ from its self-identifier in case or by a trailing dot; each body names the requested resource type and `resource-id` in the form shown. Its self-identifier, `did:opena2a:registry:opena2a.org`, resolves with `200`. On 2026-10-11 the first three answered `200` with the registry's own DID Document, whose `id` is `did:opena2a:registry:opena2a.org`; that is the substitution the negative resolution vector records (Section 8.5). An unregistered `agent` DID, `did:opena2a:agent:agent_conformance_test_001`, returns `404` with the body `{"error":"resource not found: agent/agent_conformance_test_001"}`. `python3 scripts/check_examples.py --live` resolves the six registry DIDs above and exits 1 when one answers other than `404`. A verifier still applies the check in Section 6.5, which rejects a substituted document whichever resolver returns it.
 
 Resolvers MAY cache successful resolutions in accordance with the `Cache-Control` header. Resolvers SHOULD NOT cache 4xx responses.
 
@@ -326,11 +348,11 @@ Every `did:opena2a` DID Document SHALL contain at least one `verificationMethod`
 - **Subject keys.** One or more entries whose `controller` is the subject DID itself. Their ids use the fragment `#key-N`. A subject key is an Ed25519 key published by the subject at registration or rotation (Sections 4.1 and 4.3). The representation of a post-quantum key component is not defined in this revision.
 - **Registry key.** Exactly one entry whose `controller` is the issuing registry's self-identifier (Section 3.4). Its id uses the fragment `#registry-key`. Its value is the registry's current Ed25519 signing key.
 
-For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; revision 0.2 corrected the description (`CHANGELOG.md`, 0.2.0). The reference resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
+For an `Ed25519VerificationKey2020` entry, `publicKeyMultibase` is the multibase base58btc encoding (prefix `z`) of the multicodec `ed25519-pub` prefix `0xed01` followed by the 32 raw key bytes, the `z6Mk...` form. Revision 0.1 described the value as a base64 encoding after `z`; revision 0.2 corrected the description (`CHANGELOG.md`, 0.2.0). The reference deployment's resolver encodes as specified here (`opena2a-registry/internal/application/did_service.go:56-68`, source read 2026-09-08; private source; a live `publicKeyMultibase` begins `z6Mk`), and the subject key in the example above decodes with an independent multiformats implementation to the `ed25519-pub` codec and the RFC 8032 Test 2 key bytes.
 
 During a registry key rotation overlap period (Section 4.3), the registry's discovery document SHALL advertise all currently valid registry keys. The DID Document itself advertises only the most recently rotated registry key. Verifiers handling potentially historical assertions SHOULD consult the discovery document for the full set of valid keys.
 
-Implementation status (reference resolver, source read 2026-09-08): the reference resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not published by the reference resolver as of 2026-09-08 (resolve `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`: one `#registry-key` entry, controller the registry DID, under both relationships); the 0.2 shape is the target it is measured against.
+Implementation status (reference deployment's resolver, source read 2026-09-08): that resolver emits one `verificationMethod` entry, the registry key, and lists it under both `authentication` and `assertionMethod` (`opena2a-registry/internal/application/did_service.go:322-335`). Subject keys are not published by that resolver as of 2026-09-08 (resolve `did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem`: one `#registry-key` entry, controller the registry DID, under both relationships); the 0.2 shape is the target it is measured against.
 
 ### 5.1.1 Verification relationships
 
@@ -387,7 +409,7 @@ A subject key revocation is a rotation without a replacement (Section 4.3, item 
 
 A `did:opena2a` string is not, by itself, evidence of anything. Verification requires resolution against a pinned registry and verification of any associated signature against the resolved verification key of the right relationship (Section 5.1.1). Consumers MUST NOT treat a bare DID string in untrusted input as authoritative without performing the full resolve-and-verify procedure.
 
-A verifier MUST check that the `id` of the resolved DID Document equals the canonical form (Section 3.1.2) of the DID it requested (Section 4.2), compared as exact strings after that decoding, and MUST reject the resolution when it does not. A verifier that requests the canonical form, the form every signed artifact carries (Section 3.1.1), compares the two strings as they are. Without this check, a resolver that answers an unregistered DID with a different document leads the verifier to accept that document's keys as the requested subject's keys: the keys of `did:opena2a:registry:opena2a.org` would be accepted as the keys of a registry named `evil.test`. The issuing-registry check (Section 3.5) does not catch this substitution, because the substituted document is genuinely issued by the pinned registry.
+A verifier MUST check that the `id` of the resolved DID Document equals the canonical form (Section 3.1.2) of the DID it requested (Section 4.2), compared as exact strings after that decoding, and MUST reject the resolution when it does not. A verifier that requests the canonical form, the form every signed artifact carries (Section 3.1.1), compares the two strings as they are. A verifier that requests a string naming the deprecated alias `a2a_agent` compares the returned `id` with the canonical form of the `agent` DID it reads the string as (Section 3.2). Without this check, a resolver that answers an unregistered DID with a different document leads the verifier to accept that document's keys as the requested subject's keys: the keys of `did:opena2a:registry:opena2a.org` would be accepted as the keys of a registry named `evil.test`. The issuing-registry check (Section 3.5) does not catch this substitution, because the substituted document is genuinely issued by the pinned registry.
 
 ### 6.6 Availability and centralization risk
 
@@ -432,7 +454,7 @@ A single publisher may control many `did:opena2a` DIDs (one per registered resou
 
 ### 8.1 OpenA2A Registry
 
-The reference implementation of the `did:opena2a` method is the OpenA2A Registry. Its source repository, `opena2a-org/opena2a-registry`, is private: an anonymous reader cannot open it, and the citations into it in Sections 4.2, 5.1 and 8.4 and in `CHANGELOG.md` can be checked only by readers with access. A public reader can check the reference deployment's behavior and the DID Documents it returns (Section 8.4), and the conformance suites (Section 8.2). Within the private source, the DID-handling code is concentrated in:
+The reference implementation of the `did:opena2a` method is the OpenA2A Registry. Its source repository, `opena2a-org/opena2a-registry`, is private: an anonymous reader cannot open it, and the citations into it in Sections 4.2, 5.1 and 8.4 and in `CHANGELOG.md` can be checked only by readers with access. A public reader can check the reference deployment's behavior and the DID Documents it returns (Section 8.4) and the conformance suites (Section 8.2), and can read the source of the resolver of Section 8.6. Within the private source, the DID-handling code is concentrated in:
 
 - `internal/application/did_service.go`: parsing, multibase encoding, DID Document construction.
 - `internal/interfaces/http/handlers/did_handler.go`: HTTP surface for Resolve, well-known, trust proof, revocation.
@@ -468,7 +490,7 @@ The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.o
 - Trust-proof revocation: `POST /api/v1/trust/revoke`; revocation list: `GET /api/v1/trust/revocations`.
 - Offline bundle: `GET /api/v1/trust/bundle`, refreshed hourly.
 - k-anonymous prefix lookup: `GET /api/v1/trust/private-lookup?prefix=<10+chars>`.
-- Not-found body shape: `{"error":"package not found: registry package not found"}` for an unregistered `agent` DID (measured 2026-10-12, `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:agent:agent_conformance_test_001`). The body does not identify the missing resource as Section 4.2 requires; see the implementation status note there.
+- Not-found body shape: `{"error":"resource not found: <type>/<id>"}`, with the `resource-type` and `resource-id` of the request in place of `<type>` and `<id>`, measured 2026-10-21 UTC for unregistered `agent`, `authority`, `publisher`, `mcp_server`, `ai_tool`, `llm` and `skill` DIDs and for a request naming `a2a_agent`. For `did:opena2a:agent:agent_conformance_test_001` it is `{"error":"resource not found: agent/agent_conformance_test_001"}` (`curl -s https://api.oa2a.org/api/v1/did/did:opena2a:agent:agent_conformance_test_001`). The body identifies the missing resource, as Section 4.2 requires. `python3 scripts/check_examples.py --live` compares the reply to that DID with this body. The registry DIDs the implementation status note in Section 4.2 lists get a body of the same form.
 
 Implementation status (measured 2026-10-12 UTC, `curl -s https://api.oa2a.org/api/v1/trust/bundle | jq -c '{keys: keys, count}'`): the reference deployment's bundle is a JSON object with the members `count`, `generatedAt`, `issuerDid` and `proofs`, and no signature over the bundle; each proof carries its own `signature` and `signatures`, and `generatedAt` was the time of the request. The bundle carried 5 proofs, issued at different times in the preceding three hours with a 24-hour `expiresAt`, which is consistent with proofs issued on request rather than for the registry's active resources: `did:opena2a:mcp_server:@modelcontextprotocol/server-github` and `did:opena2a:mcp_server:@modelcontextprotocol/server-memory` resolve and are not in it. The prefix lookup answers from the same set: `GET /api/v1/trust/private-lookup?prefix=did:opena2a:mcp_server:@modelcontextprotocol` returned only the `server-filesystem` proof that the bundle carries. On this deployment the offline and privacy properties of Sections 6.6, 7.1 and 7.2 therefore hold only for the DIDs the bundle lists, and the bundle shows every downloader which DIDs were recently requested.
 
@@ -484,6 +506,21 @@ The DID Documents under [`examples/`](./examples/) are shaped for this deploymen
 
 The [`vectors/`](./vectors/) directory of this repository holds resolution vectors for the resolved-`id` check of Section 6.5. Each vector is a JSON object with a `requestedDid`, the `resolutionResult` a resolver returned for it (`didDocument`, `didResolutionMetadata`, `didDocumentMetadata`), and an `expected` member whose `verdict` is `accept` or `reject`; a rejection also names the failed check as `reason`. Every vector reports the reference deployment's self-identifier as `issuingRegistry`, so the issuing-registry check of Section 3.5 passes and the Section 6.5 check decides the verdict. The negative vector is the substitution measured against the reference deployment (Section 4.2): a request for `did:opena2a:registry:evil.test` answered with the document of `did:opena2a:registry:opena2a.org`, which the issuing-registry check does not catch. Key values in the vectors are placeholders; the checks do not read them. `scripts/check_vectors.py` applies both checks, with `did:opena2a:registry:opena2a.org` as the pinned registry, to every vector and fails when a verdict differs from `expected`, so a verifier implementation can be tested against the same files.
 
+### 8.6 Public reference resolver (informative)
+
+[`scripts/reference_resolver.py`](./scripts/reference_resolver.py) is a resolver whose source a public reader can open. It is written from this specification, not taken from the registry source of Section 8.1, and it does not serve the reference deployment; the implementation status notes in this document describe the reference deployment's resolver, not this one. It implements:
+
+- parsing: the grammar of Section 3.1, the decoding step of Section 3.1.2 and the case rules of Section 3.3, with a `400` body that names the defect (Section 4.2);
+- multibase: the `publicKeyMultibase` value of Section 5.1, the base58btc encoding of the multicodec prefix `0xed01` followed by the 32 key bytes, written and read back;
+- document construction: a resource's DID Document in the shape of Sections 5, 5.1 and 5.1.1, and the registry DID Document of Section 5.3;
+- handlers: `GET` and `HEAD` on the resolution path of Section 8.4, answered as Section 4.2 requires, with a DID resolution result that carries `issuingRegistry` (Section 3.5) and, for a deactivated record, `deactivated: true` and a document without services (Section 4.4); and a discovery document (Section 8.3) at `/.well-known/opena2a`.
+
+It follows rules that the implementation status notes record the reference deployment as not yet following: it emits the 0.2 document shape (Sections 5.1 and 5.3) and `issuingRegistry` (Section 3.5), reports deactivation (Section 4.4), decodes a percent-encoded `resource-id` (Section 4.2), and answers `404`, with a body naming the DID, for a DID whose `resource-type` is not registered (Section 3.2). It also answers `404`, with a body naming the DID, for a registry DID other than its own, as the Section 4.2 implementation status note records the reference deployment doing.
+
+It reads the registry and its records from a JSON file, whose format its module docstring gives, and refuses a file that breaks the rules of Sections 3.4 and 4.1. `python3 scripts/reference_resolver.py --records <file> resolve <did>` prints the reply to one request, and `serve` answers HTTP on `127.0.0.1`. It serves plain HTTP, so TLS (Section 6.2) goes in front of it. It does not implement the write operations of Sections 4.1, 4.3 and 4.4, trust proofs or revocation.
+
+`scripts/test_reference_resolver.py` checks the parser against the grammar that `scripts/check_did_syntax.py` compiles from Section 3.1, the documents the resolver builds against the Section 5 example and [`examples/`](./examples/), and its replies against the checks of `scripts/check_vectors.py` (Section 8.5).
+
 ## 9. Versioning and change process
 
 Changes to this specification are tracked in the repository's `CHANGELOG.md`. Substantive changes (changes to the ABNF, the registered resource types, the operation surface, the DID Document shape, or the security model) SHALL be accompanied by a version bump and a pull request that requires review by the editors listed in `MAINTAINERS.md` and a 7-day quiet period before merge.
@@ -498,6 +535,7 @@ Non-substantive changes (editorial, typographical, link updates) MAY be merged w
 - RFC 8032, Edwards-Curve Digital Signature Algorithm (EdDSA), Section 7.1 test vectors: <https://datatracker.ietf.org/doc/html/rfc8032#section-7.1>
 - OpenA2A Agent Identity Protocol, AIP-SPEC 1.2.0-draft, Section 3.2 (method scoping; the text is unchanged from 1.1.0-draft): <https://github.com/opena2a-standards/agent-identity-protocol>
 - OpenA2A Registry source: `opena2a-org/opena2a-registry`, private (Section 8.1)
+- Public reference resolver: [`scripts/reference_resolver.py`](./scripts/reference_resolver.py) (Section 8.6)
 - OpenA2A reference deployment discovery document (live): <https://api.oa2a.org/.well-known/opena2a>
 - Agent Trust eXtension (ATX) conformance suite: <https://github.com/opena2a-standards/atx-conformance>
 - Agent Trust Protocol (ATP) conformance suite: <https://github.com/opena2a-standards/atp-conformance>

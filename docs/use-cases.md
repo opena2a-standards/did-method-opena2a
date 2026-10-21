@@ -12,7 +12,7 @@ What you can do today: resolve the reference registry's own DID.
 curl https://api.oa2a.org/api/v1/did/did:opena2a:registry:opena2a.org
 ```
 
-Where it stops today: the reference resolver still emits the 0.1 document shape. For a resource DID it publishes the registry's signing key and not the subject's own key, so a verifier cannot yet use the resolved document to check that the caller holds the key behind the name. It also answers every `did:opena2a:registry:<authority>` DID with this same document: `curl -s https://api.oa2a.org/api/v1/did/did:opena2a:registry:example.com | jq -r .id` prints `did:opena2a:registry:opena2a.org` (measured 2026-10-12). A verifier rejects that answer by checking the resolved `id` against the DID it requested (spec Section 6.5).
+Where it stops today: the reference deployment's resolver still emits the 0.1 document shape. For a resource DID it publishes the registry's signing key and not the subject's own key, so a verifier cannot yet use the resolved document to check that the caller holds the key behind the name. `did:opena2a:registry:example.com`, which names another registry, gets `404`: `curl -s -w ' %{http_code}\n' https://api.oa2a.org/api/v1/did/did:opena2a:registry:example.com` prints `{"error":"resource not found: registry/example.com"} 404` (measured 2026-10-21), where on 2026-10-12 the deployment answered it with this same document. A verifier still checks the resolved `id` against the DID it requested and rejects the resolution when they differ (spec Section 6.5).
 
 ## An agent connects to a tool it did not write
 

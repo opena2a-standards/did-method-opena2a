@@ -26,6 +26,11 @@ CANONICAL = "did:opena2a:mcp_server:@modelcontextprotocol/server-filesystem"
 # The Section 3.1.1 serialization of CANONICAL. Percent-encoded DIDs stay out
 # of vectors/, which the family did-example-forms check reads.
 ENCODED = "did:opena2a:mcp_server:%40modelcontextprotocol%2Fserver-filesystem"
+AGENT = "did:opena2a:agent:a2a-server"
+# A request for AGENT that names the deprecated alias a2a_agent (Section 3.2).
+# The alias holds a digit, which the Section 3.1 resource-type rule does not
+# admit, so the string stays out of vectors/ and the Markdown files.
+ALIAS = "did:opena2a:a2a_agent:a2a-server"
 ACCEPT = {"verdict": "accept"}
 REJECT = {"verdict": "reject", "reason": "resolved-id-mismatch"}
 
@@ -60,6 +65,32 @@ class VerifyTest(unittest.TestCase):
 
     def test_percent_encoded_request_answered_with_requested_string_is_rejected(self):
         self.assertEqual(self.verify(ENCODED, result(ENCODED)), ("reject", "resolved-id-mismatch"))
+
+    def test_alias_is_outside_the_resource_type_rule(self):
+        did_rx, _ = self.rx
+        self.assertIsNone(did_rx.fullmatch(ALIAS))
+
+    def test_alias_request_answered_with_the_agent_id_is_accepted(self):
+        # Section 3.2: a request that names the alias is read as the agent DID.
+        self.assertEqual(self.verify(ALIAS, result(AGENT)), ("accept", None))
+
+    def test_alias_request_answered_with_an_id_that_keeps_the_alias_is_rejected(self):
+        # The reply the reference deployment gives (Section 3.2, implementation status).
+        self.assertEqual(self.verify(ALIAS, result(ALIAS)), ("reject", "resolved-id-mismatch"))
+
+    def test_alias_request_is_read_before_it_is_decoded(self):
+        requested = "did:opena2a:a2a_agent:agent%5Fconformance%5Ftest%5F001"
+        self.assertEqual(self.verify(requested, result("did:opena2a:agent:agent_conformance_test_001")),
+                         ("accept", None))
+
+    def test_agent_request_answered_with_an_id_that_keeps_the_alias_is_rejected(self):
+        self.assertEqual(self.verify(AGENT, result(ALIAS)), ("reject", "resolved-id-mismatch"))
+
+    def test_alias_in_the_resource_id_is_kept(self):
+        requested = "did:opena2a:agent:a2a_agent"
+        self.assertEqual(self.verify(requested, result(requested)), ("accept", None))
+        self.assertEqual(self.verify(requested, result("did:opena2a:agent:agent")),
+                         ("reject", "resolved-id-mismatch"))
 
     def test_other_issuing_registry_is_rejected(self):
         res = result(CANONICAL, issuing="did:opena2a:registry:evil.test")

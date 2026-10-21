@@ -8,6 +8,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- **Public reference resolver (new Section 8.6, informative).** The registry
+  source stays private, and `scripts/reference_resolver.py` is a resolver
+  whose source a public reader can open, written from the specification
+  rather than taken from that source: DID parsing (Sections 3.1, 3.1.2 and
+  3.3), the Ed25519 `publicKeyMultibase` encoding (Section 5.1), DID Document
+  construction for a resource and for the registry (Sections 5 and 5.3), and
+  HTTP handlers for resolution (Sections 3.5, 4.2 and 4.4) and discovery
+  (Section 8.3). It reads a registry and its records from a JSON file and
+  answers `GET` and `HEAD` on `/api/v1/did/<did>`; `resolve` prints one reply
+  and `serve` answers HTTP on `127.0.0.1`, takes a `--port` from 0 to 65535,
+  and exits 2 after one line naming the address and the reason when it
+  cannot listen there. python3 standard library only.
+  `scripts/test_reference_resolver.py` compares its parser with the grammar
+  compiled from Section 3.1 on `did:opena2a:` followed by every string of up
+  to five characters over a nine-character alphabet, on each ASCII character
+  in the resource-type, the resource-id and the fragment, and on each
+  percent-encoded octet; it
+  compares the documents it builds with the Section 5 example and
+  `examples/`, and its replies with the checks of `scripts/check_vectors.py`.
+  The Abstract, Sections 8.1 and 10 and the README point to it. The Status
+  of this document section, Section 5.1, the README, `docs/status.md` and
+  `docs/use-cases.md` now name "the reference deployment's resolver" where
+  they said "the reference resolver", which meant that resolver.
 - **Resolution vectors (new Section 8.5, informative).** `vectors/` holds two
   resolution vectors for the resolved-`id` check of Section 6.5: the
   `did:opena2a:registry:evil.test` substitution measured against the reference
@@ -43,6 +66,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the reference deployment it exits 0. `docs/examples.md` states that the
   resolved registry document carries three verification methods where its
   example carries one.
+- **`python3 scripts/check_examples.py --live` compares the not-found body.**
+  `did:opena2a:agent:agent_conformance_test_001` must answer `404` with the
+  body Section 8.4 records,
+  `{"error":"resource not found: agent/agent_conformance_test_001"}`; the run
+  exits 1 otherwise. Against the reference deployment it exits 0.
 
 ### Changed
 
@@ -72,6 +100,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Registry DIDs other than the self-identifier, re-measured (Sections 4.2
+  and 8.4).** On 2026-10-21 (UTC) the reference deployment answered
+  `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and
+  `did:opena2a:registry:api.oa2a.org` with `404` and a body naming the
+  requested resource, such as
+  `{"error":"resource not found: registry/evil.test"}`; on 2026-10-11 it
+  answered them with `200` and its own registry DID Document. The
+  implementation status note of Section 4.2, the Status of this document
+  paragraph, the README, `docs/status.md` and `docs/use-cases.md` said the
+  deployment answers every `did:opena2a:registry:<authority>` DID with that
+  document. All but the README now give the 2026-10-21 measurement, and the
+  Section 4.2 note keeps the 2026-10-11 substitution that the negative
+  resolution vector records; the README drops the claim from where the
+  reference resolver stops. Section 4.2 and Section 8.4 give the body for the
+  unregistered `agent` DID `did:opena2a:agent:agent_conformance_test_001`,
+  `{"error":"resource not found: agent/agent_conformance_test_001"}`, in
+  place of `{"error":"package not found: registry package not found"}`.
+  `python3 scripts/check_examples.py --live` also resolves the six registry
+  DIDs the Section 4.2 note lists and exits 1 when one answers other than
+  `404`.
 - **`scripts/test_readme.py` reads code blocks as `scripts/check_links.py`
   does.** The word-limit test flipped its fenced-code state at any line that
   starts with three backticks or three tildes, so after a backtick fence
@@ -249,6 +297,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   space, each other control or format character is written as its Python
   escape, as in `request failed: BadStatusLine: \x1b[31mred`, and a text
   longer than 200 characters is cut to 200 or fewer and ends in `...`.
+- **`scripts/check_links.py` skips indented code blocks and reads a code span
+  across the lines of its paragraph.** A URL in an indented code block, as on
+  a line of four spaces and `curl https://example.org/x`, was checked as a
+  link, though CommonMark renders that line as code; the lines of indented
+  code blocks, which `code_blocks` returned, are now skipped as the lines of
+  fenced ones are. A code span was read one line at a time, so a span opened
+  on one line and closed on the next, after `https://example.org/x`, gave the
+  target `https://example.org/x` with the closing backtick at its end. A code
+  span is now read as CommonMark reads one: a run of backticks opens one that
+  the next run of as many backticks in the same paragraph closes, across its
+  lines, in a block quote or a list item too. A run with no such run after it
+  is text, and a backtick escaped with a backslash opens none; before, a run
+  of any length closed a span, and an escaped backtick opened one. The
+  targets read from the README and the spec are unchanged.
 - **`scripts/check_examples.py --live` on a body that is not JSON.** A `200`
   answer whose body is not a JSON object, such as an HTML error page, is
   reported as a problem for that DID, with exit 1, instead of ending the run
@@ -290,11 +352,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - **Section 3.2** no longer says a registry MAY reply `404` for a resource it
   has no record of; it points to the Section 4.2 rule, under which `404` is the
   one conforming reply.
-- **Section 8.4** records the not-found body the reference deployment returns
-  for an unregistered `agent` DID,
-  `{"error":"package not found: registry package not found"}` (measured
-  2026-10-12), in place of the `package not found: <type>/<id>` shape it does
-  not emit.
+- **Section 8.4** records the not-found body the reference deployment returns,
+  `{"error":"resource not found: <type>/<id>"}` with the requested resource
+  type and id (measured 2026-10-21 UTC), in place of the
+  `package not found: <type>/<id>` shape revision 0.3 recorded. The body
+  identifies the missing resource, as Section 4.2 requires, and the Section
+  4.2 implementation status note no longer says it does not. On 2026-10-12
+  the deployment answered an unregistered `agent` DID with
+  `{"error":"package not found: registry package not found"}`.
+- **Requests that name `a2a_agent` (Sections 3.1.2, 3.2, 4.2 and 6.5).**
+  Section 3.2 says resolvers SHOULD treat the alias as `agent`, but the alias
+  holds a digit, which the Section 3.1 `resource-type` rule does not admit,
+  and no section said which `id` a request naming it is answered with.
+  Section 3.2 now says that treating it as `agent` means reading the request
+  as the `agent` DID with the same `resource-id` before it is parsed and
+  decoded: the registry answers with the canonical form of that DID as `id`,
+  and the resolved-`id` checks of Sections 4.2 and 6.5 compare the returned
+  `id` with it. A resolver that does not treat the alias as `agent` answers
+  `400`. `scripts/check_vectors.py` reads such a request the same way;
+  before, it stopped on one with `requested DID does not parse or decode`.
+  Implementation status (measured 2026-10-21 UTC for three registered
+  agents): the reference deployment answers a request naming the alias with
+  a document whose `id` keeps the alias.
 - **Section 5.1** says revision 0.2 corrected the `publicKeyMultibase`
   description; "this revision" read as a 0.3 change.
 - **Status paragraph and Section 10** cite AIP-SPEC 1.2.0-draft Section 3.2 and

@@ -142,12 +142,22 @@ def deployment() -> dict:
     return served
 
 
-def serve(documents: dict):
-    """Answer each resolution request with its DID's document, or 404 for a DID not in `documents`."""
+def not_found(did: str) -> bytes:
+    """The body of the deployment's 404 reply to `did`, as spec Section 8.4 records it."""
+    _, _, rtype, rid = did.split(":", 3)
+    return json.dumps({"error": f"resource not found: {rtype}/{rid}"}).encode("utf-8")
+
+
+def serve(documents: dict, bodies: dict | None = None):
+    """Answer each resolution request with its DID's document, or 404 for a DID not in `documents`.
+
+    A 404 reply carries the body `bodies` gives for its DID, or the one spec Section 8.4 records.
+    """
     def respond(request, *args, **kwargs):
         did = request.full_url.split("/api/v1/did/", 1)[1]
         if did not in documents:
-            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(b""))
+            body = (bodies or {}).get(did, not_found(did))
+            raise urllib.error.HTTPError(request.full_url, 404, "Not Found", None, io.BytesIO(body))
         return Response(json.dumps(documents[did]).encode("utf-8"))
     return respond
 
@@ -252,6 +262,133 @@ class LiveKeys(unittest.TestCase):
             "examples/mcp_server.json: service endpoints differ from the live document",
             "examples/mcp_server.json: live assertionMethod [] differs from the layout spec Section 5.1 "
             "records for the deployment, [#registry-key]")
+
+
+class LiveNotFoundBody(unittest.TestCase):
+    DID = check_examples.NOT_FOUND_DID
+    RECORDED = '{"error":"resource not found: agent/agent_conformance_test_001"}'
+
+    def assert_only_problem(self, bodies: dict, expected: str) -> None:
+        status, out, err = run_live(serve(deployment(), bodies))
+        self.assertEqual(status, 1)
+        self.assertEqual(out, "")
+        self.assertEqual(err.splitlines(), [expected])
+
+    def test_another_body_is_reported(self):
+        # The body the deployment returned on 2026-10-12, which did not name the resource.
+        self.assert_only_problem(
+            {self.DID: b'{"error":"package not found: registry package not found"}'},
+            f'spec Section 8.4: {self.DID} answered 404 with '
+            f'{{"error":"package not found: registry package not found"}}, where the section records {self.RECORDED}')
+
+    def test_a_body_that_is_not_json_is_reported(self):
+        self.assert_only_problem(
+            {self.DID: b"<html>"},
+            f"spec Section 8.4: {self.DID} answered 404 with a body that is not a JSON object, "
+            f"where the section records {self.RECORDED}")
+
+    def test_a_served_did_is_reported(self):
+        documents = deployment()
+        documents[self.DID] = {"id": self.DID}
+        status, _, err = run_live(serve(documents))
+        self.assertEqual(status, 1)
+        self.assertIn(f"spec Section 8.4: {self.DID} answered 200, where the section records 404 with "
+                      f"{self.RECORDED}", err)
+
+
+class NotFoundBodyDocumentation(unittest.TestCase):
+    """Spec Section 8.4 records the reply `--live` compares, for the DID it compares."""
+
+    def test_section_8_4_records_the_body_the_live_check_compares(self):
+        spec = (check_examples.ROOT / "did-method-opena2a.md").read_text(encoding="utf-8")
+        section = spec.split("\n### 8.4 ", 1)[1].split("\n### ", 1)[0]
+        did = check_examples.NOT_FOUND_DID
+        for rtype, rid in (("<type>", "<id>"), did.split(":", 3)[2:]):
+            body = json.dumps(check_examples.not_found_body(rtype, rid), separators=(",", ":"))
+            self.assertIn(f"`{body}`", section)
+        self.assertIn(f"`curl -s https://api.oa2a.org/api/v1/did/{did}`", section)
+
+
+# The registry DIDs the spec Section 4.2 implementation status note records the
+# deployment answering with 404; none of them is its self-identifier.
+NOTED_REGISTRIES = (
+    "did:opena2a:registry:evil.test",
+    "did:opena2a:registry:example.com",
+    "did:opena2a:registry:api.oa2a.org",
+    "did:opena2a:registry:OPENA2A.ORG",
+    "did:opena2a:registry:OpenA2A.org",
+    "did:opena2a:registry:opena2a.org.",
+)
+
+
+def requested_did(request) -> str:
+    return request.full_url.split("/api/v1/did/", 1)[1]
+
+
+class LiveUnregisteredRegistries(unittest.TestCase):
+    def test_each_noted_registry_did_is_resolved(self):
+        requested = []
+        respond = serve(deployment())
+
+        def record(request, *args, **kwargs):
+            requested.append(requested_did(request))
+            return respond(request, *args, **kwargs)
+
+        status, _, err = run_live(record)
+        self.assertEqual((status, err), (0, ""))
+        self.assertEqual([did for did in requested if did in NOTED_REGISTRIES], list(NOTED_REGISTRIES))
+
+    def test_one_answered_with_the_registry_document_is_reported(self):
+        # The substitution the deployment served for registry:evil.test on 2026-10-11.
+        for did in NOTED_REGISTRIES:
+            with self.subTest(did=did):
+                documents = deployment()
+                documents[did] = documents[REGISTRY]
+                status, out, err = run_live(serve(documents))
+                self.assertEqual(status, 1)
+                self.assertEqual(out, "")
+                self.assertEqual(err.splitlines(), [
+                    f"did-method-opena2a.md: {did} answered 200 with the document of {REGISTRY}, "
+                    "expected 404 (Section 4.2)"])
+
+    def test_one_answered_200_with_a_body_that_is_not_a_document_is_reported(self):
+        respond = serve(deployment())
+
+        def answer_evil_test(request, *args, **kwargs):
+            if requested_did(request) == NOTED_REGISTRIES[0]:
+                return Response(b"<html>")
+            return respond(request, *args, **kwargs)
+
+        status, _, err = run_live(answer_evil_test)
+        self.assertEqual(status, 1)
+        self.assertEqual(err.splitlines(), [
+            f"did-method-opena2a.md: {NOTED_REGISTRIES[0]} answered 200, expected 404 (Section 4.2)"])
+
+    def test_one_answered_with_another_error_status_is_reported(self):
+        respond = serve(deployment())
+
+        def fail_example_com(request, *args, **kwargs):
+            if requested_did(request) == NOTED_REGISTRIES[1]:
+                raise urllib.error.HTTPError(request.full_url, 500, "Internal Server Error", None, io.BytesIO(b""))
+            return respond(request, *args, **kwargs)
+
+        status, _, err = run_live(fail_example_com)
+        self.assertEqual(status, 1)
+        self.assertEqual(err.splitlines(), [
+            f"did-method-opena2a.md: {NOTED_REGISTRIES[1]} answered 500, expected 404 (Section 4.2)"])
+
+    def test_a_network_error_is_reported_not_raised(self):
+        respond = serve(deployment())
+
+        def time_out_registries(request, *args, **kwargs):
+            if requested_did(request) in NOTED_REGISTRIES:
+                raise TimeoutError("timed out")
+            return respond(request, *args, **kwargs)
+
+        status, _, err = run_live(time_out_registries)
+        self.assertEqual(status, 1)
+        self.assertEqual(err.splitlines(), [f"did-method-opena2a.md: {did}: request failed: timed out"
+                                            for did in NOTED_REGISTRIES])
 
 
 if __name__ == "__main__":
