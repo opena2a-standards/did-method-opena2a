@@ -115,6 +115,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Fixed
 
+- **Discovery request on the authority host (Section 8.4).** The Discovery
+  bullet now gives `GET https://opena2a.org/.well-known/opena2a`, on the host
+  the self-identifier `did:opena2a:registry:opena2a.org` names (Sections 3.4
+  and 8.3). Measured 2026-10-21 (UTC), it answers `307` with `Location:
+  https://api.oa2a.org/.well-known/opena2a`, which serves the discovery
+  document with `"did:opena2a"` in `supportedMethods`. (#22)
+
 - **Registry DIDs other than the self-identifier, re-measured (Sections 4.2
   and 8.4).** On 2026-10-21 (UTC) the reference deployment answered
   `did:opena2a:registry:evil.test`, `did:opena2a:registry:example.com` and
@@ -410,6 +417,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   percent-encoded form to the same DID Document is no longer listed among the
   rules the reference deployment does not yet follow, and stands with the
   behaviour the Section 4.2 notes record the deployment showing.
+- **The commit that added the README use cases (`fe26e40`, #9) describes a
+  removal its diff does not contain.** Its message says it removed the word
+  "signed" from "returns a signed DID Document", but its diff adds 32 lines to
+  `README.md` and removes none, and no version of `README.md` on `main` has
+  carried that phrase. (#10)
+- **Agents catalogued under `a2a_agent` (Section 3.2).** Section 3.2 now
+  records, as measured on 2026-10-21 (UTC), that the reference deployment
+  catalogues agents under the deprecated alias `a2a_agent`: its package
+  listing reports `1194` records of that type and `0` of type `agent`. The
+  resolved `agent` DID Documents of the agents `a2a-server`, `a2a-settlement`
+  and `a2a-spec` use the alias in two service URLs: `type=a2a_agent` in the
+  `TrustLookup` endpoint and `/badge/a2a_agent/` in the `TrustBadge`
+  endpoint. (#25)
 
 ## [0.3.0] - 2026-10-11
 

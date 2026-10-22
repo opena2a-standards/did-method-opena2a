@@ -193,6 +193,21 @@ prints the requested string; with `agent` it prints
 section describes finds a resolved-`id` mismatch in the first reply
 (Section 6.5).
 
+Implementation status (measured 2026-10-21 UTC): the reference deployment
+catalogues agents under the alias `a2a_agent`, not under `agent`. With
+`<type>` replaced by `agent` and then by `a2a_agent`,
+`curl -s 'https://api.oa2a.org/api/v1/registry/packages?type=<type>&limit=1' | jq .total`
+prints `0` and then `1194`. The resolved `agent` DID Documents of the agents
+`a2a-server`, `a2a-settlement` and `a2a-spec` name the alias in two service
+URLs: the `TrustLookup` endpoint carries `type=a2a_agent` and the
+`TrustBadge` endpoint carries `/badge/a2a_agent/`. For `a2a-server`,
+`curl -s https://api.oa2a.org/api/v1/did/did:opena2a:agent:a2a-server | jq -c '[.service[] | {type, serviceEndpoint}]'`
+lists three services, among them the `TrustLookup` endpoint
+`https://api.oa2a.org/api/v1/trust/query?name=a2a-server&type=a2a_agent` and
+the `TrustBadge` endpoint `https://api.oa2a.org/badge/a2a_agent/a2a-server`.
+This section's rule, under which `agent` is the registered type and
+`a2a_agent` is not, is the one the deployment is measured against.
+
 ### 3.3 Identifier normalization
 
 Implementations MUST treat the literal prefix `did:opena2a:` and the `resource-type` slot as case-sensitive lowercase. The `resource-id` slot is case-preserving and MUST NOT be lowercased by the resolver, since some resource identifiers (notably scoped npm package names such as `@modelcontextprotocol/server-filesystem`) are case-significant in their upstream ecosystems. The hexadecimal digits of a `pct-encoded` triplet are the exception: they are case-insensitive, and the triplet is decoded (Section 3.1.2) before the `resource-id` is compared, so case preservation applies to the decoded characters.
@@ -485,7 +500,7 @@ A registry exposes a discovery document at the well-known path `/.well-known/ope
 The reference deployment operated by OpenA2A is reachable at `https://api.oa2a.org`. Its self-identifier is `did:opena2a:registry:opena2a.org`. The concrete surface, as of the source read on 2026-09-08:
 
 - Resolution: `GET https://api.oa2a.org/api/v1/did/<did>`, replying with `Content-Type: application/did+ld+json` (Section 4.2).
-- Discovery: `GET https://api.oa2a.org/.well-known/opena2a`.
+- Discovery: `GET https://opena2a.org/.well-known/opena2a`, on the authority host the self-identifier names (Sections 3.4 and 8.3). Measured 2026-10-21 UTC, it answers `307` with `Location: https://api.oa2a.org/.well-known/opena2a`, which serves the document (`200`, `application/json`, `supportedMethods` containing `"did:opena2a"`).
 - Registry key rotation and revocation: `POST /internal/keys/rotate`, `POST /internal/keys/revoke` (operator-only).
 - Trust-proof revocation: `POST /api/v1/trust/revoke`; revocation list: `GET /api/v1/trust/revocations`.
 - Offline bundle: `GET /api/v1/trust/bundle`, refreshed hourly.
