@@ -103,6 +103,12 @@ Where it stops today: the reference deployment's resolver still emits the 0.1 do
 
 [`scripts/reference_resolver.py`](./scripts/reference_resolver.py) is a resolver whose source is public, written from the specification. It emits the 0.2 document shape and `issuingRegistry`, and answers `404` for a registry DID other than its own. Spec Section 8.6 lists what else it implements and how to run it.
 
+## Who this is for
+
+Security leaders deciding whether to rely on a registry-issued identifier, identity architects placing `did:opena2a` beside `did:web`, `did:key` and the systems they run, engineers who resolve and verify DIDs, developers who implement a resolver or a registry, auditors testing the verifier and privacy rules, and standards reviewers.
+
+[Who reads this](./docs/use-cases.md#who-reads-this) names the question each one brings and the section of the specification that answers it.
+
 ## Examples
 
 See [`examples/`](./examples/) for DID Documents in the 0.2 shape, one per resource type the reference deployment serves, plus the registry self-DID. [`examples/conformance/`](./examples/conformance/) holds two identifiers the conformance suites carry. `python3 scripts/check_examples.py --live` resolves each DID against the reference deployment and exits 1 on a difference.
