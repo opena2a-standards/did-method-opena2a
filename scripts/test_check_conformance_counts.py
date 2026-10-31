@@ -172,6 +172,7 @@ class DeliveredTest(CountsTest):
         for part in counts.parts(text):
             if part.suite in counts.SUITES and part.counts:
                 self.assertNotIn(part.suite, stated, f"docs/use-cases.md states {part.suite} counts once")
+                self.assertTrue(part.commits, f"the {part.suite} counts name no commit")
                 stated[part.suite] = part
         self.assertEqual(sorted(stated), sorted(counts.SUITES))
         return stated
