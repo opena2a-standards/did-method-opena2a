@@ -24,6 +24,7 @@ The full specification is in [`did-method-opena2a.md`](./did-method-opena2a.md).
 ## Resolution
 
 Resolution returns a [W3C DID Document][did-core] that carries the subject's own keys under `authentication` and the issuing registry's Ed25519 signing key under `assertionMethod`, and whose service endpoints expose trust lookup, signed trust proofs, and trust badges.
+The reference deployment still returns the 0.1 shape, a single registry key under both relationships.
 
 A `did:opena2a` DID is resolved by HTTP `GET` against the registry that issued it. Against the reference deployment:
 
