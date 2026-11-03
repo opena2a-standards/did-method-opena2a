@@ -155,6 +155,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   same rule. `scripts/check_links.py` gains `code_blocks`, which also returns
   the lines of indented code blocks; the link targets it reads in the README
   and the specification are unchanged.
+- **`scripts/check_conformance_counts.py` reads fenced code blocks as
+  `scripts/check_links.py` does.** A fence opened only at the start of a
+  line, after at most three spaces, so a fenced block indented four spaces
+  under `1. Run the verifier:`, or one in a block quote, was read as prose,
+  and its `summary: 41 pass, 0 fail (41 fixtures)` line failed as a count
+  stated before naming a conformance suite. The check now skips the lines
+  `check_links.code_block_lines` gives as fenced, so such a block is skipped
+  as one at the top level is, and the text of a list item below its block is
+  still read. A block left open now ends where its list item ends; it hid
+  the lines below it up to a closing fence or the end of the file. The
+  paragraphs and counts it reads in the delivered README and `docs/` are
+  unchanged.
 - **ATX fixture count in `docs/use-cases.md`.** The use cases gave
   `atx-conformance` as 23 fixtures; its `MANIFEST.sha256` on `main` lists 25,
   and each of the 25 carries a `did:opena2a` identifier.

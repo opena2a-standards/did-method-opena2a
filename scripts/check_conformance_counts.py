@@ -11,9 +11,10 @@ nothing caught it. This check reads each suite at the commit the sentence
 names and fails when a stated count differs.
 
 It reads README.md and the Markdown files under docs/, outside fenced code
-blocks. A count belongs to the conformance suite named before it in the same
-paragraph, and is read at the commit named in that suite's part of the
-paragraph, as in
+blocks, which it finds as scripts/check_links.py finds them, so a fenced block
+in a list item or a block quote is skipped as one at the top level is. A count
+belongs to the conformance suite named before it in the same paragraph, and
+is read at the commit named in that suite's part of the paragraph, as in
 
     [atx-conformance](...) (all 41 fixtures at commit `2328506`)
 
@@ -67,6 +68,12 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# check_links.py sits beside this script. Python leaves the script directory
+# off sys.path under -P, -I and PYTHONSAFEPATH=1, so add it here.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import check_links
+
 ROOT = Path(__file__).resolve().parent.parent
 
 SUITES = ("atx-conformance", "atp-conformance", "aip-conformance")
@@ -118,8 +125,6 @@ PHRASES = [
 SUITE_NAME_RE = re.compile(r"(?<![\w/.-])((?:aap|aip|atp|atx)-conformance)(?![\w-])")
 COMMIT_RE = re.compile(r"\bcommit\s+`?([0-9a-f]{7,40})\b`?")
 LINK_RE = re.compile(r"\[([^\]]*)\]\([^)\s]*\)")
-FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
-FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})\s*$")
 # A line that starts a block of its own: a heading, a list item, a block quote or a table row.
 BLOCK_START_RE = re.compile(r"^\s*(?:#{1,6}\s|[-*+]\s|\d+[.)]\s|>|\|)")
 
@@ -134,27 +139,22 @@ class Part:
 
 
 def paragraphs(text: str):
-    """Yield (line numbers, lines) per paragraph outside fenced code blocks, each link reduced to its text."""
-    fence = None
+    """Yield (line numbers, lines) per paragraph outside fenced code blocks, each link reduced to its text.
+
+    The lines of fenced code blocks are the ones check_links.code_block_lines
+    gives, so a fence in a list item or a block quote is found as one at the
+    top level is."""
+    text_lines = text.split("\n")
+    fenced = check_links.code_block_lines(text_lines)
     numbers: list[int] = []
     lines: list[str] = []
-    for number, raw in enumerate(text.split("\n"), 1):
-        if fence is not None:
-            close = FENCE_CLOSE_RE.match(raw)
-            if close and close.group(1)[0] == fence[0] and len(close.group(1)) >= len(fence):
-                fence = None
-            continue
-        opening = FENCE_OPEN_RE.match(raw)
-        if opening and opening.group(1)[0] == "`" and "`" in raw[opening.end():]:
-            opening = None  # a run of backticks with a backtick after it on its line opens no fence
-        if opening or not raw.strip() or (lines and BLOCK_START_RE.match(raw)):
+    for number, raw in enumerate(text_lines, 1):
+        skipped = number in fenced or not raw.strip()
+        if skipped or (lines and BLOCK_START_RE.match(raw)):
             if lines:
                 yield numbers, lines
             numbers, lines = [], []
-            if opening:
-                fence = opening.group(1)
-                continue
-            if not raw.strip():
+            if skipped:
                 continue
         numbers.append(number)
         lines.append(LINK_RE.sub(r"\1", raw))

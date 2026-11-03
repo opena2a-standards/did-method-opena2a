@@ -58,6 +58,17 @@ def sentence(atx: int = 41, atp: int = 14, challenge_response: int = 14, total: 
     )
 
 
+# A page whose only count, on line 6, is in a fenced code block indented four
+# spaces under a numbered list item: one space past where the item's text starts.
+NESTED_FENCE = (
+    "# Run a suite\n\n"
+    "1. Run the verifier:\n\n"
+    "    ```\n"
+    "    summary: 41 pass, 0 fail (41 fixtures)\n"
+    "    ```\n"
+)
+
+
 class CountsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="did-method-conformance-counts-"))
@@ -373,6 +384,34 @@ class PhrasingTest(CountsTest):
         text = sentence(40, commits=commits).replace("# Use cases\n", "# Use cases\n\n```code``` comes first here.\n")
         self.assertFails(self.tree(text), "states 40 (fixtures) for atx-conformance")
 
+    def test_a_fenced_block_in_a_list_item_is_not_read(self):
+        commits = self.commit_all()
+        self.assertPasses(self.tree(sentence(commits=commits), {"docs/run-a-suite.md": NESTED_FENCE}),
+                          "9 stated value(s) checked")
+
+    def test_a_fenced_block_in_a_block_quote_is_not_read(self):
+        commits = self.commit_all()
+        quoted = "# Run a suite\n\n> ```\n> summary: 41 pass, 0 fail (41 fixtures)\n> ```\n"
+        self.assertPasses(self.tree(sentence(commits=commits), {"docs/run-a-suite.md": quoted}),
+                          "9 stated value(s) checked")
+
+    def test_text_of_a_list_item_below_its_fenced_block_is_read(self):
+        commits = self.commit_all()
+        text = NESTED_FENCE + "\n   The suites ship 72 fixtures.\n"
+        code, out = self.run_check(self.tree(sentence(commits=commits), {"docs/run-a-suite.md": text}))
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/run-a-suite.md:9 states 72 (fixtures) before naming a conformance suite", out)
+        self.assertNotIn("docs/run-a-suite.md:6", out)
+
+    def test_a_fenced_block_left_open_ends_where_its_list_item_ends(self):
+        commits = self.commit_all()
+        text = ("# Run a suite\n\n- Run the verifier:\n\n  ```\n  summary: 41 pass, 0 fail (41 fixtures)\n\n"
+                "The suites ship 72 fixtures.\n")
+        code, out = self.run_check(self.tree(sentence(commits=commits), {"docs/run-a-suite.md": text}))
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/run-a-suite.md:8 states 72 (fixtures) before naming a conformance suite", out)
+        self.assertNotIn("docs/run-a-suite.md:6", out)
+
     def test_a_count_before_any_suite_is_named_fails(self):
         commits = self.commit_all()
         text = sentence(commits=commits) + "\nThe suites ship 72 fixtures.\n"
@@ -444,6 +483,31 @@ class PhrasingTest(CountsTest):
             "atx-conformance", plain=41,
             extra={"fixtures/load-errors/truncated.json": "{\n", "fixtures/NOTES.md": f"{AGENT}\n"})
         self.assertPasses(self.tree(sentence(commits=commits)), "9 stated value(s) checked")
+
+
+class ScriptDirectoryOffThePathTest(CountsTest):
+    """The script imports check_links.py when Python leaves its directory off sys.path."""
+
+    def assertPassesWith(self, *options: str, **env: str) -> None:
+        commits = self.commit_all()
+        proc = subprocess.run(
+            [sys.executable, "-B", *options, str(CHECK), "--root", str(self.tree(sentence(commits=commits))),
+             "--family-dir", str(self.family)],
+            env={**self.env, **env}, capture_output=True, text=True, cwd=self.tmp,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("9 stated value(s) checked", proc.stdout)
+
+    def test_isolated_mode(self):
+        self.assertPassesWith("-I")
+
+    @unittest.skipUnless(sys.version_info >= (3, 11), "-P and PYTHONSAFEPATH need Python 3.11")
+    def test_safe_path_option(self):
+        self.assertPassesWith("-P")
+
+    @unittest.skipUnless(sys.version_info >= (3, 11), "-P and PYTHONSAFEPATH need Python 3.11")
+    def test_safe_path_environment_variable(self):
+        self.assertPassesWith(PYTHONSAFEPATH="1")
 
 
 if __name__ == "__main__":
