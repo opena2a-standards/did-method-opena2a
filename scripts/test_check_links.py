@@ -5,12 +5,14 @@ Run from the repository root: python3 -m unittest discover -s scripts
 """
 from __future__ import annotations
 
+import math
 import socket
 import sys
 import tempfile
 import threading
 import time
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
@@ -1082,18 +1084,56 @@ class OneLine(unittest.TestCase):
 
 
 class LongLines(unittest.TestCase):
-    """A line built to make a backtracking pattern retry from every position."""
+    """A line built to make a backtracking pattern retry from every position.
+
+    Each check builds the line at two lengths, LENGTH // STEP and LENGTH, and
+    times targets() on both. Work linear in the length of the line takes
+    about STEP times as long on the longer line, and a pattern that retries
+    from every position, quadratic in the length, about STEP squared times;
+    the check fails at GROWTH times, midway between the two on a log scale.
+    The verdict is the ratio of the two times, not either time: a host that
+    runs both lines the same factor slower changes both times and leaves the
+    ratio. Each time
+    is the CPU time of the thread, which leaves out the time the thread waits
+    for a core. A ratio from GROWTH to twice it is timed again, up to ROUNDS
+    rounds in all, and the least time on each line is the one compared, so
+    one run that the host slows does not decide the verdict. A ratio of twice
+    GROWTH or more fails without another round."""
 
     LENGTH = 120_000
-    SECONDS = 1.0
+    STEP = 16
+    GROWTH = STEP ** 1.5
+    ROUNDS = 5
 
-    def assert_linear(self, head: str, unit: str, tail: str, want: str) -> None:
-        line = head + unit * (self.LENGTH // len(unit)) + tail + "\n"
-        start = time.perf_counter()
+    def cpu_seconds(self, line: str, want: str) -> float:
+        """The CPU time of the thread for one targets() call on line, which
+        finds want."""
+        start = time.thread_time()
         found = targets(line)
-        elapsed = time.perf_counter() - start
-        self.assertLess(elapsed, self.SECONDS, f"{unit!r} x {self.LENGTH // len(unit)}")
+        elapsed = time.thread_time() - start
         self.assertIn(want, found)
+        return elapsed
+
+    def assert_linear(self, head: str | Callable[[int], str], unit: str, tail: str,
+                      want: str | Callable[[int], str]) -> None:
+        """head and want are strings, or functions of the length for a line
+        whose head or target grows with the run; the run holds
+        length // len(unit) copies of unit."""
+        lines = []
+        for length in (self.LENGTH // self.STEP, self.LENGTH):
+            line = (head(length) if callable(head) else head) + unit * (length // len(unit))
+            lines.append((line + tail + "\n", want(length) if callable(want) else want))
+        short_time = long_time = math.inf
+        for _ in range(self.ROUNDS):
+            short_time = min(short_time, self.cpu_seconds(*lines[0]))
+            long_time = min(long_time, self.cpu_seconds(*lines[1]))
+            if long_time < self.GROWTH * short_time:
+                return
+            if long_time >= 2 * self.GROWTH * short_time:
+                break
+        ratio = long_time / short_time if short_time else math.inf
+        self.fail(f"{unit!r} x {self.LENGTH // len(unit)}: {long_time:.3g} s, {ratio:.0f} times "
+                  f"the {short_time:.3g} s for {unit!r} x {self.LENGTH // self.STEP // len(unit)}")
 
     def test_run_of_open_brackets(self):
         self.assert_linear("[a](b) ", "[", "", "b")
@@ -1150,14 +1190,14 @@ class LongLines(unittest.TestCase):
         self.assert_linear("", "\\``\n", " https://example.org/x", "https://example.org/x")
 
     def test_run_of_lines_after_a_run_of_block_quote_markers(self):
-        self.assert_linear(">" * (self.LENGTH // 4) + " a\n", ">\n", "https://example.org/x",
-                           "https://example.org/x")
-        self.assert_linear(">" * (self.LENGTH // 4) + " ```\n", "\n", "https://example.org/x",
-                           "https://example.org/x")
+        self.assert_linear(lambda length: ">" * (length // 4) + " a\n", ">\n",
+                           "https://example.org/x", "https://example.org/x")
+        self.assert_linear(lambda length: ">" * (length // 4) + " ```\n", "\n",
+                           "https://example.org/x", "https://example.org/x")
 
     def test_run_of_letters_after_an_ampersand_in_an_attribute_value(self):
         self.assert_linear('<a href="https://example.org/&', "a", '">t</a>',
-                           "https://example.org/&" + "a" * self.LENGTH)
+                           lambda length: "https://example.org/&" + "a" * length)
 
     def test_run_of_whitespace_references_before_the_scheme(self):
         self.assert_linear('<a href="', "&#32;", 'https://example.org/x">t</a>',
@@ -1186,15 +1226,79 @@ class LongLines(unittest.TestCase):
 
     def test_run_of_lines_after_a_run_of_list_and_block_quote_markers(self):
         # A blank line stays in every list item, up to a block quote.
-        self.assert_linear("- " * (self.LENGTH // 4) + "a\n", "\n", "[a](b)", "b")
-        self.assert_linear("> - " * (self.LENGTH // 8) + "a\n", ">\n", "[a](b)", "b")
-        self.assert_linear("- > " * (self.LENGTH // 8) + "a\n", "  >\n", "[a](b)", "b")
+        self.assert_linear(lambda length: "- " * (length // 4) + "a\n", "\n", "[a](b)", "b")
+        self.assert_linear(lambda length: "> - " * (length // 8) + "a\n", ">\n", "[a](b)", "b")
+        self.assert_linear(lambda length: "- > " * (length // 8) + "a\n", "  >\n", "[a](b)", "b")
 
     def test_line_indented_under_a_run_of_list_items(self):
         # The line stays in every item. The head holds the first half of its
         # indentation.
-        self.assert_linear("- " * self.LENGTH + "a\n" + "  " * (self.LENGTH // 2), "  ",
+        self.assert_linear(lambda length: "- " * length + "a\n" + "  " * (length // 2), "  ",
                            "[a](b)", "b")
+
+
+class SimulatedHost:
+    """A stand-in for check_links.link_targets that finds the one target b,
+    and a clock that only it moves: a call on a text takes
+    seconds(length, earlier) on the clock, where length is the length of the
+    text and earlier the number of calls before it on a text that long."""
+
+    def __init__(self, seconds: Callable[[int, int], float]) -> None:
+        self.seconds = seconds
+        self.now = 0.0
+        self.calls: dict[int, int] = {}
+
+    def clock(self) -> float:
+        return self.now
+
+    def link_targets(self, text: str) -> list:
+        earlier = self.calls.get(len(text), 0)
+        self.calls[len(text)] = earlier + 1
+        self.now += self.seconds(len(text), earlier)
+        return [(1, "b")]
+
+
+class LinearityCheck(unittest.TestCase):
+    """LongLines.assert_linear on a run of `[` after `[a](b) `, timed on a
+    SimulatedHost. perf_counter, process_time and thread_time in time all
+    read the host's clock, so the host times each call whichever of them the
+    check reads."""
+
+    def assert_linear_on(self, host: SimulatedHost) -> None:
+        with mock.patch.object(check_links, "link_targets", host.link_targets), \
+                mock.patch.multiple(time, perf_counter=host.clock, process_time=host.clock,
+                                    thread_time=host.clock):
+            LongLines().assert_linear("[a](b) ", "[", "", "b")
+
+    def test_linear_work_on_a_host_too_slow_for_a_fixed_time_bound_passes(self):
+        # 0.1 ms a character: 12 s on the longer line, 16 times the shorter.
+        host = SimulatedHost(lambda length, earlier: length * 1e-4)
+        self.assert_linear_on(host)
+        self.assertEqual(sorted(host.calls.values()), [1, 1])
+
+    def test_a_slowed_run_of_the_longer_line_is_timed_again(self):
+        # The first run of the longer line takes five times as long, 80 times
+        # the shorter line, and the next one 16 times.
+        host = SimulatedHost(lambda length, earlier: length * 1e-6 * (
+            5 if length > LongLines.LENGTH and not earlier else 1))
+        self.assert_linear_on(host)
+        self.assertEqual(sorted(host.calls.values()), [2, 2])
+
+    def test_quadratic_work_fails_after_one_round(self):
+        # 255 times the shorter line: twice GROWTH or more, so no other round.
+        host = SimulatedHost(lambda length, earlier: length ** 2 * 1e-10)
+        with self.assertRaisesRegex(AssertionError,
+                                    r"^'\[' x 120000: 1\.44 s, 255 times the 0\.00564 s "
+                                    r"for '\[' x 7500$"):
+            self.assert_linear_on(host)
+        self.assertEqual(sorted(host.calls.values()), [1, 1])
+
+    def test_a_ratio_under_twice_growth_on_each_round_fails_after_the_last_round(self):
+        # length ** 1.6: 84 times the shorter line on each round.
+        host = SimulatedHost(lambda length, earlier: length ** 1.6 * 1e-9)
+        with self.assertRaises(AssertionError):
+            self.assert_linear_on(host)
+        self.assertEqual(sorted(host.calls.values()), [LongLines.ROUNDS] * 2)
 
 
 if __name__ == "__main__":
